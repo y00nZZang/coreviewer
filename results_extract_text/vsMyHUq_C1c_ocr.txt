@@ -1,0 +1,923 @@
+Published as a conference paper at ICLR 2023
+
+A STABLE AND SCALABLE METHOD FOR SOLVING
+INITIAL VALUE PDES WITH NEURAL NETWORKS
+
+Marc Finzi'*, Andres Potapczynski'*, Matthew Choptuik?, Andrew Gordon Wilson!
+New York University! and University of British Columbia
+
+ABSTRACT
+
+Unlike conventional grid and mesh based methods for solving partial differen-
+tial equations (PDEs), neural networks have the potential to break the curse of
+dimensionality, providing approximate solutions to problems where using clas-
+sical solvers is difficult or impossible. While global minimization of the PDE
+residual over the network parameters works well for boundary value problems,
+catastrophic forgetting impairs applicability to initial value problems (IVPs). In
+an alternative local-in-time approach, the optimization problem can be converted
+into an ordinary differential equation (ODE) on the network parameters and the
+solution propagated forward in time; however, we demonstrate that current meth-
+ods based on this approach suffer from two key issues. First, following the ODE
+produces an uncontrolled growth in the conditioning of the problem, ultimately
+leading to unacceptably large numerical errors. Second, as the ODE methods
+scale cubically with the number of model parameters, they are restricted to small
+neural networks, significantly limiting their ability to represent intricate PDE ini-
+tial conditions and solutions. Building on these insights, we develop Neural-IVP,
+an ODE based IVP solver which prevents the network from getting ill-conditioned
+and runs in time linear in the number of parameters, enabling us to evolve the dy-
+namics of challenging PDEs with neural networks.
+
+1 INTRODUCTION
+
+Partial differential equations (PDEs) are needed to describe many phenomena in the natural sciences.
+PDEs that model complex phenomena cannot be solved analytically and many numerical techniques
+are used to computer their solutions. Classical techniques such as finite differences rely on grids
+and provide efficient and accurate solutions when the dimensionality is low (d = 1,2). Yet, the
+computational and memory costs of using grids or meshes scales exponentially with the dimension,
+making it extremely challenging to solve PDEs accurately in more than 3 dimensions.
+
+Neural networks have shown considerable success in modeling and reconstructing functions on high-
+dimensional structured data such as images or text, but also for unstructured tabular data and spatial
+unctions. Neural networks sidestep the “curse of dimensionality” by learning representations of the
+data that enables them to perform efficiently. In this respect, neural networks have similar benefits
+and drawbacks as Monte Carlo methods. The approximation error € converges at a rate € x 1/\/n
+rom statistical fluctuations where n is the number of data points or Monte Carlo samples. Expressed
+inversely, we would need: n «x e?!°&1/© samples to get error €, a compute grows exponentially in
+the number of significant digits instead of exponential in the dimension as it is for grids. For many
+problems this tradeoff is favorable and an approximate solution is much better than no solution.
+
+Thus, it is natural to consider neural networks for solving PDEs whose dimensionality makes stan-
+dard approaches intractable. While first investigated in|/Dissanayake & Phan-Thien](1994) and|La-|
+|garis et al.] (1998), recent developments by [Yu et al.] (2018) and|Sirignano & Spiliopoulos| (2018)
+
+have shown that neural networks can successfully approximate the solution by forcing them to sat-
+isfy the dynamics of the PDE on collocation points in the spatio-temporal domain. In particular,
+the global collocation approaches have proven effective for solving boundary value problems where
+the neural network can successfully approximate the solution. However, for initial value problems
+
+*Equal contribution, order chosen by random coin flip. {maf820, ap6604}@nyu.edu
+Published as a conference paper at ICLR 2023
+
+(IVPs), treating time as merely another spatial dimension results in complications for the neural
+network like catastrophic forgetting. Some heuristics have been developed to ameliorate this latter
+problem, such as increasing the collocation points as time progresses, but then the computational
+cost of training the neural network becomes impractical.
+
+Recently,/Du & Zaki|(2021) and [Bruna et al{2022) have provided two methods that follow a novel
+or ng neural ne
+
+local-in-time approac traini tworks to solve IVPs by updating the network param-
+eters sequentially through time rather than by having some fixed set of parameters to model the
+whole spatio-temporal domain. These methods have proven successful for a variety of PDEs, but
+they currently suffer from two shortcomings. First, the conditioning of the linear systems required
+to follow the ODE on the network parameters degrades over time, leading to longer solving times
+and ultimately to a complete breakdown of the solution. Second, the current methodologies lack the
+capacity to represent difficult initial conditions and solutions as their runtime scales cubically in the
+number of network parameters, limiting their ability to use large neural networks. In this work we
+provide a local-in-time IVP solver (Neural-IVP) that circumvents the shortcomings of Du & Zaki
+ar:
+
+(2021) and[Bruna et al.|(2022) and thus enable us to solve challenging PDEs. In particu
+
+¢ Leveraging fast matrix vector multiplies and preconditioned conjugate gradients, we develop an
+approach that scales only linearly in the number of parameters, allowing us to use considerably
+larger neural networks and more data.
+
+¢ We further improve the representational power and quality of the fit to initial conditions through
+the use of last layer linear solves and sinusoidal embeddings.
+
+* We show how following the parameter ODE leads the network parameters to an increasingly
+poorly conditioned region of the parameter space, and we show how this relates to exact and
+approximate parameter symmetries in the network.
+
+¢ Using regularization, restarts, and last layer finetuning, we are able to prevent the parameters
+from reaching these poorly conditioned regions, thereby stabilizing the method.
+
+We provide a code implementation at |nttps://github.com/mfinzi/neural-ivp
+
+2 BACKGROUND
+
+Given a spatial domain XY C R2”, we will consider the evolution of a time-dependent function
+u: & x [0,7] + R* which at all times belongs to some functional space U/ and with dynamics
+governed by
+
+Ou (x,t) = L [u] (a, t) for (x,t) € X x [0,T]
+u(a,0) = uo (x) forx Ee ¥
+u(x,t) = h(a,t) for x € OX x [0,T]
+
+where uo € U is the initial condition, h is spatial boundary condition, and L is the (possibly non-
+linear) operator containing spatial derivatives. We can represent PDEs with higher order derivatives
+in time, such as the wave equation 07¢ = Ag, by reducing them to a system of first order in time
+equations u := [¢, 0,4], where in this example L[ug, ui] = [ui, Au].
+
+Global Collocation Methods _ The first approaches for solving PDEs via neural networks are
+based on the idea of sampling uniformly on the whole spatio-temporal domain and ensuring that the
+neural network obeys the PDE by minimizing the PDE residual (or a proxy for it). This approach
+was initially proposed by and|Lagaris et al.] (1998), which used
+neural networks as approximate solutions. However, recent advances in automatic differentiation,
+compute, and neural network architecture have enabled successful applications such as the Deep
+
+Galerkin Method (Sirignano & Spiliopoulos| |2018), Deep Ritz Method (2018), and PINN
+2019), which have revitalized interest in using neural networks to solve PDEs.
+
+Learning From Simulations —_ Not all approaches use neural networks as a basis function to repre-
+sent the PDE solution. Some approaches focus on directly learning the PDE operator as in|Lu et al.|
+or[Kovachki et al.] (2021), where the operator can be learned from simulation. However, as
+these methods typically use grids, their purpose is to accelerate existing solvers rather than tackling
+new problems. Other approaches that do not rely on collocation points exploit specific information
+
+of elliptic and semi-linear parabolic PDEs, such as|E. et al. (2017) and [Han et al.| (2018).
+
+Published as a conference paper at ICLR 2023
+
+2.1 GLOBAL PDE RESIDUAL MINIMIZATION
+
+The most straightforward method for producing a neural network solution to initial values PDEs
+is similar to the approach used for boundary value problems of treating the temporal dimensions
+as if they were spatial dimensions and parameterizing the solution simultaneously for all times
+u(x,t) = No(a,t). The initial and boundary conditions can be enforced through appropriate pa-
+rameterization of the network architecture (Berg & Nystrém| |2018), whereas the PDE is enforced
+through minimization of the training objective:
+
+S(@) = I, sun 8 8daaa = I, go Oeta(ast) ~ £ lua (o,f)
+
+where the expectation is estimated via Monte Carlo samples over a chosen distribution of j4 and
+times t.
+
+Initial value PDEs have a local temporal structure where only values on the previous spatial slice are
+necessary to compute the next; however, global minimization ignores this property. Moreover, as
+the weights of the neural network must be used to represent the solution simultaneously at all times,
+then we must ensure that the neural network approximation does not forget the PDE solution learnt
+at earlier times (catastrophic forgetting). While |Sirignano & Spiliopoulos' (2018) and |Sitzmann
+take this approach, the downsides of avoiding catastrophic forgetting is to increase the
+computation spent by ensuring the presence of data from previous times.
+
+2.2 LOCAL-IN-TIME METHODS
+
+To circumvent the inherent inefficiency of the global methods, |Du & Zaki (2021 and |Bruna et al.
+propose a local-in-time method whereby the minimization problem gets converted into an
+ODE that the parameters satisfy at each point in time. In this approach, the PDE solution is given by
+u(x,t) = N(x, @(t)) for a neural network N, where the time dependence comes from the parameter
+vector (t) rather than as an input to the network. Thus, the network only represents the solution
+at a single time, rather than simultaneously at all times, and subsequently 6(t) can be recorded
+and no representational power or computational cost is incurred from preserving previous solutions.
+Assuming the PDE is one-dimensional, the PDE residual at a single time can be written as,
+
+L(6,t) = [nen t)?du(x) = [event x, 0(t)) — LIN](x, O(t)))?du(x), (1)
+
+since the time derivative is O,u(x,t) = 6" VeN(z, 0).
+
+Choosing the dynamics 6 of the parameters to minimize the instantaneous PDE residual error L(6, t)
+yields the (implicitly defined) differential equation
+
+M(0)0=F(0) and 4 =arg min [ (N(x, 0) — u(x, 0))?du(a), (2)
+6 x
+
+where M(0) = fy VoN(x,0)VoN(a, 0)" dy(x) and F(0) = fy VoN(x, 0)L[N] (a, 0)dy(x).
+
+Once we find 4, to fit the initial conditions, we have a fully specified system of differential equations,
+
+where we can advance the parameters (and therefore the solution u(x, 6(t))) forward in time.
+
+Since both (0) and F(@) involve integrals over space, we can estimate them with n Monte Carlo
+samples, yielding M(0) and F(0). We then proceed to solve the linear system M(0)0 = F(6) at
+each timestep for the dynamics 6 and feed that into an ODE integrator such as RK45
+[& Prince] |1980). For systems of PDEs such as the Navier-Stokes equations, the method can be
+extended in a straightforward manner by replacing the outer product of gradients with the Jacobians
+of the multi-output network N: M(0) = fy DgN(a, 0)" DeN(a, 0)dp(x) and likewise for F’, which
+results from minimizing the norm of the PDE residual fy ||r(x, t)||?dy(x).
+
+Introducing some additional notation, we can write the Monte Carlo estimates M and F ina more
+
+illuminating way. Defining the Jacobian matrix of the network for different input points J; =
+aa N (21,9), and defining f as f; = CL{N](x;,6), the PDE residual estimated via the n-sample
+Published as a conference paper at ICLR 2023
+
+Monte Carlo estimator is just the least squares objective £(,t) = +||JO — f||?.. The matrices
+M(0) = Ags and F(6) = ig! f reveal that the ODE dynamics is just the familiar least squares
+solution 6 = Jif =(JTJ)-1I" f.
+
+3 DIAGNOSING LOCAL-IN-TIME NEURAL PDE SOLVERS
+
+The success of local-in-time methods hinges on making the PDE residual L(6, t) close to 0 as we
+follow the dynamics of 6 = M(0)~1F(). The lower the local error, the lower the global PDE
+residual $(0) = [ L(6, t)dt and the more faithfully the PDE is satisfied.
+
+Even though @ directly minimizes L(6,t), the PDE residual is not necessarily small and instead the
+value of r(x,t) depends nontrivially on the network architecture and the values of the parameters
+themselves. While /ocal-in-time methods have been applied successfully in several cases, there are
+harder problems where they fail unexpectedly. For example, they fail with unacceptably large errors
+in second-order PDEs or problems with complex initial conditions. In the following section, we
+identify the reasons for these failures.
+
+3.1 REPRESENTATIONAL POWER
+
+The simplest reason why local-in-time methods fail is because the neural networks do not have
+enough representational power. Having enough degrees of freedom and inductive biases in the
+network matters for being able to find a @ in the span of J which can match the spatial derivatives.
+The spatial derivatives £[N](x,) of the PDE must be able to be expressed (or nearly expressed)
+as a linear combination of the derivative with respect to each parameter: aN (x, 0), which is a
+different task than a neural network is typically designed for. The easiest intervention is to simply
+increase the number of parameters p, yielding additional degrees of freedom.
+
+Increasing the number of parameters also improves the ability of the network to reconstruct the initial
+conditions, which can have knock-on effects with the evolution later in time. However, increasing
+the number of parameters and evolving through time following|Du & Zaki 2021) and|Bruna et al.
+
+quickly leads to intractable computations. The linear solves used to define the ODE dynam-
+ics require time O(p? + p?n) and use O(p? + pn) memory, where p represents the neural network
+parameters and n is the number of Monte Carlo samples used to estimate the linear system. There-
+fore the networks with more than around p = 5,000 parameters cannot be used. Neural networks
+of these sizes are extremely small compared to modern networks which often have millions or even
+billions of parameters. In section! we show how our Neural-IVP method resolves this limitation,
+allowing us to use large neural networks with many parameters.
+
+3.2 STABILITY AND CONDITIONING
+
+In addition to lacking sufficient representational power, there are more subtle reasons why the local-
+in-time methods fail.
+
+Even when the solution is exactly representable, a continuous path 6* (t) between the solutions
+may not exist. Even if a network is able to faithfully express the solution at a given time u(x,t) =
+N(x, 6") for some value of 6* in the parameter space, there may not exist a continuous path between
+these 0* for different times. This fact is related to the implicit function theorem. With the multi-
+output function H;(0) = N(2;,6) — u(x;,t), even if we wish to satisfy H; = 0 only at a finite
+collection of points x;, the existence of a continuous path 6*(t) = g(t) in general requires that the
+Jacobian matrix DgH = J is invertible. Unfortunately the Jacobian is not invertible because there
+exist singular directions and nearly singular directions in the parameter space, as we now argue.
+
+There exist singular directions of J and as a result of symmetries in the network. Each
+continuous symmetry of the network will produce a right singular vector of J, regardless of how
+many points n are used in the Monte Carlo estimate. Here we define a continuous symmetry as
+a parameterized transformation of the parameters T, : R? — R? defined for a € (—e,¢), ina
+neighborhood of the identity Tj = Id, and T’, has a nonzero derivative with respect to a at the
+identity. For convenience, consider reparametrizing a to be unit speed so that ||O.T()|| = 1.
+Published as a conference paper at ICLR 2023
+
+4 — Wave — Wave — Wave
+1 — Advection 103 —— Advection — Advection
+
+— Wave (SGD) — Wave (SGD)
+
+Max Eigenvalue
+CG iterations
+
+M(6) Eigenvalues
+
+10+
+
+0 =©200 «400 «600 800 2 4 6 8 10 2 4 6 8 10
+Index Time Time
+
+Figure 1: The conditioning of the linear systems needed to solve the ODE on the network param-
+eters increases for challenging PDEs like the wave equation, but not for others like the advection
+equation. (Left): Eigenvalue spectrum of 1/() matrix at initialization. (Middle): Growth of largest
+
+eigenvalue of 1/(@) over time. (Right): Number of preconditioned CG iterations required to solve
+the linear system to a specified tolerance of ¢ = 107".
+
+Theorem 1. Suppose the network N(x, @) has a continuous parameter symmetry T., which preserves
+the outputs of the function: V0, x : N(x,T.(@)) = N(a, 9), then
+
+v() = ATa(9)|,,-o G)
+is a singular vector of both J and M.
+
+Proof: Taking the derivative with respect to a at 0, from the chain rule we have: 0 =
+8a| N(x, Ta(8)) = VoN (a, 9)! OaTa()|,9: As this expression holds for all x, J(@)v(8) = 0
+and M(@)v(@) = 0.
+
+As (2017) demonstrated, multilayer perceptrons using ReLU nonlinearities have a high-
+dimensional group of exact parameter symmetries corresponding to a rescaling of weights in alter-
+
+nate layers. Furthermore even replacing ReLUs with alternate activation functions such as Swish
+
+(Ramachandran et al.|/2017) does not solve the problem, as these will have approximate symmetries
+
+which will produce highly ill-conditioned M and J matrices.
+Theorem 2. An approximate symmetry Vx : \|N(x,T(0)) — N(x, 9)||? < ea? will produce nearly
+singular vectors v(0) = OuTa(9) | wo for which
+
+v'Mvu<e, (4)
+
+and therefore the smallest eigenvalue of M is less than e.
+Proof: See|Appendix A
+
+Additionally, the rank of the Monte Carlo estimate M= 4d TJ using n samples is at most n, and
+there is a p — n dimensional manifold of parameters which match the function values at the sample
+points Vi = 1,...,n : N(a;,@) = N; rather than over the whole domain. InFigure T](left), we show
+empirically that the eigenspectrum of MM is indeed deficient and highly ill-conditioned, with a long
+tail of small eigenvalues.
+
+Hence some form of regularization such as [MM () + j.I] 0 is necessary to have a bounded condition
+number, « (M (0) + wl) = (Ar +) / (0+ p).
+
+Furthermore, as seen in Figure[I] (middle) the conditioning of the linear system (equation [2) dete-
+riorates over time. This deterioration worsens in more challenging PDEs like second-order wave
+equation in contrast to the easier advection equation. Even when using a dense solver, the quality of
+the solves will degrade over time, leading to increased error in the solution. When using an iterative
+method like CG shown in [Figure I] (right), the runtime of the method will increase during the evo-
+lution and eventually not be able to meet the desired error tolerance. In contrast, if we instead take
+snapshots of the solution at different times and fit it directly with SGD, we find that the conditioning
+is much better as shown by the green curve in[Figure T]
+
+Making sense of this observation, we can learn from the ways that neural networks are typically
+used: in conjunction with stochastic gradient descent. In general when training neural networks with
+Published as a conference paper at ICLR 2023
+
+SGD, we must chose carefully the initialization to make the problem well-conditioned
+(2015). Many initializations, such as setting the scale of the parameters with drastically dif-
+
+erent values between layers, will lead either to diverging solutions or no progress on the objective.
+With the right initialization and a good choice of hyperparameters, the optimization trajectory will
+stay in a well-conditioned region of the parameter space. However, many bad regions of the pa-
+rameter space exist, and a number of architectural improvements in deep learning such as batch
+normalization and skip connections 6) were designed with
+the express purpose of improving the conditioning of optimization while leaving the expressive
+power unchanged. Unfortunately, while SGD optimizers stay in a well-conditioned regions of the
+parameter space, equation (2) does not.
+
+To see this, consider a singular vector v of J which has a very small singular value o, (due to
+an approximate symmetry or otherwise). Analyzing the solution, we see that the projection of the
+parameters along the singular vector evolves like: v'@ = v' Jt f = o;!ul f, where Ju = opty.
+A small singular value leads to a large change in that subspace according to the evolution of the
+ODE. Considering the approximate rescaling symmetry for swish networks, this points the dynamics
+directly into amplifying the difference between size of weights in neighboring layers and worsening
+
+the conditioning, precisely what was identified as sharp minima from|Dinh et al.|(2017). We describe
+
+how this problem can be circumvented by our method as described in sectio!
+
+4 NEURAL IVP
+
+Drawing on these observations, we introduce Neural IVP, a method for solving initial value PDEs
+that resolves the scalability and numerical stability issues limiting current local-in-time methods. We
+also enhance the Neural IVP, through projections to different regions of the parameter space, fine-
+tuning procedures, and mechanisms to increase the representation power of the neural networks.
+
+4.1 IMPROVING REPRESENTATIONAL POWER AND SCALABILITY
+
+To evaluate the representational power of the network, we examine fitting a complex initial condi-
+tion typically present in the later evolution of an entangled system, and which will contain com-
+ponents at many different frequencies. We fit a sum of two Gaussians of different sizes mod-
+ulated by frequencies pointing in different directions in 3-dimensions within the cube [—1, 1]°,
+with the slice through z = 0 shown in (left). The function is defined as the sum of
+two Gaussian like wave packets, modulated by spatial frequencies pointing in different directions:
+uo (x) = 30 (27s?) ~T en llvll3/2s%) cos (Qn faln) + 24 (2083) * e7lltll2/(2s2) cos (2xfa'm).
+where v = a — 0.5(@) + #3), w = x + (4, + 2 + 43)/6 also nm = (4%, + £)/V2 and
+m = 271 (& + 2141/3).
+
+By changing the frequency parameter f, we can investigate how well the network is able to fit
+fine-scale details. We introduce three substantial improvements to the models over those used in
+Evolutional Deep Neural Networks (EDNN) of, in order to improve their repre-
+sentational power, and we evaluate the impact of these changes in|Figure 2](middle), starting with
+the exact 4-layer 30 hidden unit tanh nonlinearity MLP architecture used in EDNN.
+
+Increasing Number of Parameters and Scalability As shown in [Figure 2|(right), the number of
+network parameters has a large impact on its representational power, not just for solving the initial
+conditions but also for finding a @ that achieves a low PDE residual. Increasing the number of
+parameters substantially reduces the approximation error, especially at high frequencies which are
+challenging for the model. While dense solves prohibit scaling past 5,000 parameters, we show that
+our solves can be performed much faster making use of the structure of M. Matrix vector multiplies
+with the matrix M(0) = 4d TJ can be implemented much more efficiently than using the dense
+matrix. Making use of Jacobian-vector-products implemented using automatic differentiation (such
+as in JAX (Bradbury et al.|{2018)), we can implement a matrix vector multiply using 2 Jacobian-
+vector-products:
+
+M(0)v=£V,\|Jell?, (5)
+
+In
+which takes O(n + p) time and memory for a single matrix-vector product, sidestepping memory
+bottlenecks that are usually the limiting factor. Then, with these efficient matrix-vector products,
+Published as a conference paper at ICLR 2023
+
+105
+
+. 5 g
+
+£104 £107 2
+
+—_ fr — Base EDNN a €
+
+= 0 g Sinusoidal g fa
+
+y 2 ioe Sy —— “Embedding 3 192 &
+3 A Improved ro 5/104
+
+“4 g i= ‘Architecture @ s
+
+Scaling Up 102
+103 —— Head Tuning
+- --2 10° 10° 10° 10? 10?
+uo(x) with f= 8 Frequency Frequency
+
+Figure 2: (Left): Example wave packet initial condition with varying levels of fine details param-
+eterized by the frequency f. (Middle): Impact of Neural-IVP improvements in the model on the
+initial condition fit relative error across different levels of difficulty of the solution as parameterized
+by the frequency f, yielding an improvement of 1 — 2 orders of magnitude. (Right): Initial condition
+fit with all Neural-IVP interventions but with varying number of parameters in the model (shown by
+the colors). Note that the largest networks which can be used by the dense method are only 5000
+parameters.
+
+we can use a scalable Krylov subspace routine of conjugate gradients (CG). To further accelerate
+the method, we construct a Nystrom preconditioner (2021), drastically reducing
+the number of CG iterations. Using this approach, each solve takes time O((n + p)./K) where
+(P-!M) is the condition number of the preconditioned matrix MW, rather than O(p? + pn) time
+of dense solves. These improvements to the runtime using the structure of M mirror the sparse and
+Kronecker structures used by finite difference methods.
+
+Sinusoidal Embedding We make several architectural enhancements to the networks used in
+
+Du & Zaki (2021) and [Bruna et al.| (2022), which improve the quality of the initial condition fit
+
+and the error when evolving forward in time. Notably, we find that using the sinusoidal embed-
+
+ding (Mildenhall et al.| [2021p substantially improves the ability of the network to represent higher
+
+frequency details in the solution. In contrast to the original form, we use the featurization
+y(a) = [sin(2xB)2-° fg + [oos(2eZ)2-"*] kg, 6)
+
+which scales the magnitude of the high frequency (large w) components down by 1/w°. While
+a = 0 (the original sinusoidal embedding) works the best for fitting an initial signal (the only
+requirement needed for Neural Radiance Fields ), the derivatives of + will
+not be well behaved as the magnitude of the largest components of 7’(z) will scale like 2" and
+(x) will scale like 27". We find setting a = 1 to be the most effective for both first order and 2nd
+order PDEs. [Figure 2| (middle) shows the sinusoidal embedding helps the model represent complex
+functions.
+
+Last Layer Linear Solves _ To further improve the quality of the initial condition fit, after training
+the network on the initial condition, we recast the fitting of the last layer of the network as solving
+a linear least squares problem. The network up until the last layer can be considered as features
+N(x) = w! ¢6(x) +b over a fixed set of collocation points X. We can then solve the minimization
+problem with respect to the final layer weights w, b
+
+min {jw " o(X) +b — wo(X)]?, 2)
+mi
+
+which can be solved to a higher level of precision and achieve a lower error when compared to the
+values of the last layer obtained without tuning from the full nonlinear and stochastic problem.
+
+Combining these three improvements of scalability, sinusoidal embeddings, and last layer linear
+solves (head tuning), we are able to reduce the representation error of the networks by 1-2 orders of
+magnitude across different difficulties of this challenging 3 dimensional problem.
+
+4.2 STABILITY AND CONDITIONING
+
+Preconditioning In section 3.2] we discussed how even for easier PDEs, the symmetries in the
+neural networks generate badly conditioned linear systems for the ODE on the parameters. To
+counteract this negative effect on our CG solver, we use the highly effective and scalable ran-
+
+domized Nystrém preconditioner (Frangella et al.|/2021). As discussed in|Frangella et al.| (2021),
+Published as a conference paper at ICLR 2023
+
+10> 107
+— Neural-ive — Neuralive
+— EDNN — EDNN
+
+102 Lea 10 an
+
+fa 3 3
+= g103 g103 a ce es
+oO = 2
+is} w w
+w 8 8
+lo lo“
+— standard
+= festans
+10> 105
+000 025 050 075 100 125 150 175 00 02 04 06 08 10 00 02 04 06 08 10
+Time Time Time
+
+Figure 3: (Left): Restarts improve the condition of the linear systems. Here we cap the number
+of CG iterations at 1000, but without restarts the number required to reach a desired error tolerance
+will only continue to increase. Neural-IVP achieves an order of magnitude better PDE residual than
+EDNN on the Fokker-Plank equation (middle) and on the Vlasov equation (right).
+
+this preconditioner is close to the optimal truncated SVD preconditioner and it is empirically
+impressive. To use this preconditioner, we first construct a Nystrém approximation of M(6@):
+
+Mnys (0) = (M (8) Q) (27M (6) a) (M (0)Q)" using a Gaussian random subspace projec-
+tion Q € R?**, where £ denotes the subspace rank. Then, using the SVD of the approximation
+Mhys (0) = UAU™ we can construct a preconditioner (where v is a small regularization) as follows:
+
+P= ~+u(At+viju'+(I-UU').
+
+Net
+This preconditioner closely approximates the optimal truncated SVD preconditioner when the eigen-
+spectrum A resembles that of the original problem. The cost of using this preconditoner are ¢
+
+matrix-vector-multiplies (MVMs) and a Cholesky decomposition of O (@), where in our problems
+£ € {100, 200, 300}.
+
+Projection to SGD-like regions — Following the ODE on the parameters leads to linear systems
+whose condition worsens over time as seen on the middle panel of Figure [I] In that plot it is
+also visible how the conditioning of the systems is much lower and does not increase as rapidly
+when the neural network is trained to fit the PDE solution using SGD. In principle we would opt
+for the SGD behavior but we do not have access to fitting the ground truth PDE solution directly.
+Instead, when the condition number grows too large, we can refit against our neural predictions
+using SGD and thus start from another location in the parameter space. That is, every so often, we
+solve OSS (t) = arg ming f,, (N (0, x) — N (6(t), x)” dys (x) where 4 (t) is our current parameters
+at time t. Performing restarts in this way considerably improves the conditioning. As seen in Figure
+3] deft) the number of CG iterations increases substantially slower when using the SGD restarts.
+
+4.3 VALIDATING OUR METHOD
+
+We validate our method with three different PDEs: the wave equation (3+1), the Vlasov equation
+(6+1) and the Fokker-Planck equation (8+1). For more details on these equations, see[Appendix B}
+For the wave equation we make comparisons against its analytic solution, while for the remaining
+equations we compare using the PDE residual (evaluated on different samples from training), addi-
+tional details about the experiment setup can be found in appendix[B] For the wave equation, Neural-
+IVP achieves the lowest error beating EDNN and finite differences evaluated on a 100 x 100 x 100
+grid as seen in Figure [6] For the remaining equations Neural-IVP achives an order of magnitude
+lower PDE residual compared to EDNN|Jas seen in the middle and right panels of Figure3}
+
+'While we would like to benefit from the improved sampling distribution proposed by
+unfortunately since the solution is not a probability distribution there is no clear measure to sample from.
+
+Published as a conference paper at ICLR 2023
+
+— EDNN
+
+aa Sear 0.4 -0.4
+LES
+
+-0.2 -0.2
+
+PDE residual
+
+N ly -0.0 N 4 -0.0
+
+os \°? ,°?
+1901 02 03a 0.4 0.4
+
+Time y y
+
+Figure 4: (Left): Neural-IVP’s PDE residual over time for wave maps compared to EDNN. (Mid-
+dle): Neural-IVP solution for the wave maps at t = 0.36 at a x = 0 slice. (Right): Finite difference
+solution for the wave maps at the same slice.
+
+5 SOLVING CHALLENGING HYPERBOLIC PDES
+
+We now turn to a challenging PDE: the wave maps equation. This equation is a second-order hy-
+perbolic PDE that often arises in general relativity and that describes the evolution of a scalar field
+in a curved (3+1) dimensional spacetime. Following Einstein’s tensor notation from differential
+geometry, the wave maps equation can be expressed as
+
+GV Nid = g” Op0v9 — gt!’ T i, Oob = 0, (8)
+where g is the metric tensor expressing the curvature of the space, I, are the Christoffel symbols,
+combinations of the derivatives of the metric, and 0,, are derivatives with respect to components of
+both space and time. For the metric, we choose the metric from a Schwarzschild black hole located
+
+at coordinate value c = —2¢ in a Cartesian-like coordinate system:
+Jurda"da” = —(1 — rs/Te)dt? + [bij + Boney (ti — cj) (aj — ¢;)|da‘da’,
+
+where re = |\x — cl] = \/>0;(ai — ce)? and r,s = 2M is the radius of the event horizon of the
+black hole, and we choose the mass M = 1/2 so that r; = 1. We choose a wave packet initial
+condition and evolve the solution for time T = .5 = LM inside the box [—1, 1], with the artificial
+Dirichlet boundary conditions on the boundary O{—1, 1]°. Here the event horizon of the black hole
+lies just outside the computational domain and boundary conditions meaning that we need not worry
+about complications on and inside the horizon, and instead the scalar field only feels the effect of
+the gravity and is integrated for a time short enough that it is not yet pulled inside.
+
+While we do not have an analytic solution to compare to, we plot the relative error of the PDE
+residual averaged over the spatial domain in[Figure which is consistently small. We also compare
+the solution at the time 7’ = 0.36 of our solver solution against the finite difference solution run at
+a spatial grid size of 150 x 150 x 150 which is the largest we were able to run with our optimized
+sparse finite difference solver before running out of memory. Despite the challenging nature of the
+problem, Neural-IVP is able to produce a consistent solution for this task. Finally, we present an
+ablation study in Figure [6] showing the gains of using the sinusoidal embedding and of scaling the
+neural network size and grid for this experiment.
+
+6 DISCUSSION
+
+There are many PDEs of interest that are massively complex to simulate using classical methods
+due to the scalability limitations of using grids and meshes. At the same time, neural networks have
+shown promise for solving boundary value problems but the current methods for solving initial value
+problems can be unstable, deficient in scale and in representation power. To ameliorate these defi-
+ciencies, we presented Neural-IVP, a local-in-time method for approximating the solution to initial
+value PDEs. Neural-IVP is a compelling option for problems that are computationally challenging
+for classical methods like the (3+1) dimensional wave maps equation in section|5| Continuous effort
+on this front will empower researchers and engineers to simulate physical PDEs which lie at the
+boundary of what is currently possible to solve, allowing prototyping and experimentation without
+the massive complexity of modern large scale grid-based solvers involving mesh generation, mesh
+refinement, boundaries, excision, parallelization, and communication.
+Published as a conference paper at ICLR 2023
+
+REFERENCES
+
+Jens Berg and Kaj Nystrém. A Unified Deep Artificial Neural Network Approach To Partial Differ-
+ential Equations In Complex Geometries. Neurocomputing, 1(317):28-41, 2018.
+
+James Bradbury, Roy Frostig, Peter Hawkins, Matthew James Johnson, Chris Leary, Dougal
+Maclaurin, George Necula, Adam Paszke, Jake VanderPlas, Skye Wanderman-Milne, and Qiao
+Zhang. JAX: composable transformations of Python+NumPy programs. Version 0.3.17, 2018.
+
+URL\http://github.com/google/ jax
+
+Joan Bruna, Benjamin Peherstorfer, and Eric Vaden-Eijnden. Neural Galerkin Scheme with Active
+Learning for High-Dimensional Evolution Equations. Preprint arXiv 2203.01360v1, 2022.
+
+Laurent Dinh, Razvan Pascanu, Samy Bengio, and Yoshua Bengio. Sharp minima can generalize
+for deep nets. In International Conference on Machine Learning, pp. 1019-1028. PMLR, 2017.
+
+M. W. M. G. Dissanayake and N. Phan-Thien. Neural-network-based approximations for solving
+partial differential equations. Communications in Numerical Methods in Engineering, 10(3):195-
+201, 1994.
+
+J. Dormand and P. Prince. A Familiy of Embedded Runge-Kutta Formulae. Journal of Computa-
+tional and Applied Mathematics, 6(1):19-26, 1980.
+
+Yifan Du and Tamer A Zaki. Evolutional Deep Neural Network. Physical Review E, 104(4):045303,
+2021.
+
+Weinan E., Jiequn Han, and Arnulf Jentzen. Deep Learning-Based Numerical Methods for High-
+Dimensional Parabolic Partial Differential Equations and Backward Stochastic Differential Equa-
+tions. Communications in Mathematics and Statistics, 5(4):349-380, 2017.
+
+Zachary Frangella, Joel A. Tropp, and Madeleine Udell. Randomized Nystrém Preconditioning.
+Preprint arXiv 2110.02820v2, 2021.
+
+Jiequn Han, Arnulf Jentzen, and Weinan E. Solving High-Dimensional Partial Differential Equations
+using Deep Learning. Communications in Mathematics and Statistics, 115(34):Proceedings of the
+National Academy of Sciences, 2018.
+
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recog-
+nition. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp.
+710-778, 2016.
+
+Sergey loffe and Christian Szegedy. Batch normalization: Accelerating deep network training by
+reducing internal covariate shift. In International conference on machine learning, pp. 448-456.
+PMLR, 2015.
+
+Nikola Kovachki, Zongyi Li, Burigede Liu, Kamyar Azizzadenesheli, Kaushik Bhattacharya, An-
+drew Stuart, and Anima Anandkumar. Neural Operator: Learning Maps Between Function
+Spaces. Preprint arXiv 2108.08481v3, 2021.
+
+I. E. Lagaris, A. Likas, and D. I. Fotiadis. Artificial Neural Networks for Solving Ordinary and
+Partial Differential Equations. [EEE Transactions on Neural Networks, 9(5):987-1000, 1998.
+
+L. Lu, P. Jin, and G. E. Karniadakis. DeepONet: Learning Nonlinear Operators for Identifying
+Differential Equations Based on the Universal Approximation Theorem of Operators. Preprint
+arXiv 1910.03193, 2019.
+
+Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ramamoorthi, and
+Ren Ng. Nerf: Representing scenes as neural radiance fields for view synthesis. Communications
+of the ACM, 65(1):99-106, 2021.
+
+Dmytro Mishkin and Jiri Matas. All you need is a good init. arXiv preprint arXiv: 1511.06422,
+2015.
+
+10
+Published as a conference paper at ICLR 2023
+
+M. Raissi, P. Perdikaris, and G. E. Karniadakis. Physics-Informed Neural Networks: A Deep Learn-
+ing Framework for Solving Forward and Inverse Problems Involving Nonlinear Partial Differen-
+tial Equations. Journal of Computational Physics, 2019.
+
+Prajit Ramachandran, Barret Zoph, and Quoc V. Le. Swish: a Self-Gated Activation Function.
+Preprint arXiv 1710.05941v1, 2017.
+
+Justin Sirignano and Konstantinos Spiliopoulos. DGM: A Deep Learning Algorithm for Solving
+Partial Differential Equations. Journal of computational physics, 375:1339-1364, 2018.
+
+Vincent Sitzmann, Julien Martel, Alexander Bergman, David Lindell, and Gordon Wetzstein. Im-
+plicit Neural Representations with Periodic Activation Functions. Advances in Neural Information
+Processing Systems, 33:7462-7473, 2020.
+
+Bing Yu et al. The Deep Ritz Method: a Deep Learning-Based Numerical Algorithm for Solving
+Variational Problems. Communications in Mathematics and Statistics, 6(1):1-12, 2018.
+
+A APPROXIMATE SYMMETRIES YIELD SMALL EIGENVALUES
+
+Suppose that the network N has an approximate symmetry in the parameters, meaning that there
+exists a value € for which
+
+Va, 0 : |[N(x,Ta(9)) — N(x, ||? < ea. (9)
+
+holds for a in a neighborhood of 0. If this is the case, we can rearrange the inequality and take the
+limit as a — 0:
+
+lim |[N(a, Ta (@)) — N(x, @)||?/0? <. (10)
+asl
+As the limit lim, N(@,Te(@))-N(@.8) = ZN(a, T.(9)) exists, we can interchange the limit and
+norm to get
+Tyo T
+||VoN vl? = vVeNVoN'v <e, (1)
+since ZN(x,Ty(0)) = VoNTv for v(0) = A.Ta(0)|,_9- Recalling that M(0) =
+
+J VoNVoN ' du(z), we can take the expectation of both sides of the inequality with respect to
+LL, producing
+
+v' Mov <e. (12)
+
+B EXTENDED EXPERIMENTAL RESULTS
+
+In this section we expose additional experimental details that were not fully covered in section[4.3]
+
+B.1 WAVE EQUATION
+
+For this experiment we use the 3 dimensional wave equation 07u = Au, that has a few well known
+analytic solutions. Even this equation is computationally taxing for finite difference and finite ele-
+ment methods. We use the radially symmetric outgoing wave solution u(x,t) = f(t — ||x||)/||2|
+with f(s) = 2s2e~2005* and integrate the initial condition forward in time by T = .5 seconds. In
+we compare to the analytic solution each of the solutions produced by Neural-IVP, EDNN
+(Du & Zakil {2021}, and finite differences evaluated on a 100 x 100 x 100 grid with RK45 set to
+a 10~* tolerance. Despite the fact that this initial condition does not contain fine scale detail that
+Neural-IVP excels at, Neural-IVP performs the best among the three solvers, and faithfully repro-
+
+duces the solution as shown in (left).
+
+11
+Published as a conference paper at ICLR 2023
+
+B.2. VLASOV EQUATION
+
+The Vlasov equation is a PDE that describes the evolution of the density of collisionless but charged
+particles in an electric field, expressed both as a function of position and velocity. This equation has
+spatial dimension 6 and takes the following form
+
+Oyu (x,v,t) +! Veu (2, v,t) + LE (2, t)'Vyu(a,v,t) =0
+
+where the vector x € R? represents the position of the particles and v € R® represents the velocity,
+and wu represents a normalized probability density over x, v. Here q is the charge of the particles and
+m is their mass (both of which we set to 1). In a self contained treatment of the Vlasov equation, the
+electric field E(x, t) is itself induced by the density of charged particles: E(a,t) = —V,,@(x, t) and
+the potential ¢ is the solution to the Poisson equation Ad = —p where p(x,t) = f qu(x, v,t)dv.
+However, to simplify the setting to a pure IVP, we assume that E(x, t) is some known and fixed
+electric field.
+
+For this particular example, we choose E(x) = V, exp(— |la||3) and the initial condition is a
+product of two Gaussians
+
+uo (a, 0) = N (a; 0, 3° D)N(v; 0, 372),
+
+corresponding to the Maxwell-Boltzmann distribution over velocities and a standard Gaussian dis-
+tribution over position, and we solve the problem on the cube [—1, 1]°.
+
+B.3 FOKKER-PLANCK
+
+For the Fokker-Planck equation, we choose the harmonic trap for a collection of d = 8 interacting
+particles from|Bruna et al.|(2022), giving rise to the equation
+
+Ou (x,t) = DAu(a,t) — V- (hu),
+where h(a) = (a — x) + a(11'/d — I)x. We choose a = (0.2)1 along with constants D = .01
+and a = 1/4.
+
+We solve this equation in d = 8 dimensions with the initial condition
+3)¢nd 2
+uo («) = (4) Hia(1 — 27)
+
+which is a normalized probability distribution on [—1,1]¢. We use the same Dirichlet boundary
+conditions for this problem.
+
+Additionally, since we can naturally increase the dimensionality of the Fokker-Planck equation, we
+explore up to what dimension Neural-IVP can give reasonable PDE residuals. As seen in Figure [5]
+Neural-IVP can still give solutions for d = 20. For dimensions higher that 20, the linear system
+solvers cannot converge to the desire tolerance needed to evolve the parameters. We warn that
+these higher dimensional solutions are not guaranteed to be of high quality since the PDE residual
+estimation also worsens as we increase the spatial dimension.
+
+C HYPERPARAMETERS
+
+For our experiments we used the following hyperparameters for Neural-IVP in our experiments
+unless otherwise specified:
+
+RK45 Integrator with rtol: le-4 (for all equations except wave maps, which uses RK23)
+Number of Monte Carlo samples: 50K for wave maps and 10-20K for all other PDEs
+Maximum CG iterations: 1,000
+
+CG tolerance: le-8
+
+Nystrém preconditioner rank: 200-350
+
+Linear system regularization: le-6
+
+NDMP WN
+
+Initial fit iterations, optimizer and learning rate: 50K, ADAM, le-3
+
+12
+Published as a conference paper at ICLR 2023
+
+107+ 10-1
+— d=5
+— d=10
+
+— d=20
+102 10-2 See
+
+w w
+E} E}
+x x
+$103 310-3 Va
+Wu Wu
+fa) fa)
+a a
+10-4 10-4 — EDNN
+— 11
+— kh
+—— Neural-lVP.
+105 10>
+0.0 O02 04 06 O08 1.0 0.0 0.1 0.2 0.3 0.4
+Time Time
+
+Figure 5: (Left): Neural-IVP is able to provide solutions up to dimension 20 + 1 for the Fokker-
+Planck equation. Higher dimensions break-down the linear systems to evolve the PDE parameters.
+(Right): Interventions to transform EDNN to Neural-IVP. (11) First, add a sinusoidal embedding
+before the MLP. (12) Second, use head finetuning (in this case there is no notable improvement as
+the initial condition does not posses finer details). Finally, scale the neural network and the grid size.
+Note that this is only possible due to our scalable and efficient construction.
+
+10°
+
+== Neural-IVP-
+== Finite Diff
+= EDNN
+107
+x Fi
+7 @
+2
+3
+7}
+i «
+10-2
+0.0 0.2 0.4
+Hi -3
+0.0 01 0.2 03 0.4 0.5
+Time 10
+
+Time
+
+Figure 6: (Left): Neural-IVP fit of the wave equation through time. (Right): Neural-IVP performs
+slightly better than a finite difference method on the 3D wave equation.
+
+8. Floating point precision: double
+
+9. Number of restarts: 10
+
+The neural network architecture we use is a simple MLP with 3 hidden layers, each with 100 hidden
+units, L = 5 for the highest frequency power in the sinusoidal embedding, and the network uses
+
+swish nonlinearities. The initial sinusoidal embedding values y(p) are scaled by 1.5 before feeding
+into the network.
+
+13
+Published as a conference paper at ICLR 2023
+
+Algorithm 1 NEURAL-IVP
+
+1: Input:
+
+1. IVP: Initial condition wo (2), PDE rhs operator £{u](x, t), integration time T
+2. Design Choices: neural network architecture N (x, 6), sampling distribution 1
+3. Hyperparameters: n number of Monte Carlo samples, ODE-TOL, CG_TOL, regularization
+
+4, preconditioner rank r
+
+2: Output: Solution u(x, t) at specified times t),...ty <T
+
+3: function NEURAL-IVP
+
+4: 6 + FitFunction(uo)
+
+5: At + 20TODE_TOL
+
+6: while t < T do
+
+7: if Sufficient time since last restart then
+
+8: 6 FitFunction(N(-,4))
+
+9: 6, At + Adapt ive_RK23_Step(Dynamics, 0, At, ODE_TOL)
+
+10: tct+At
+
+return [N(-,4:,),...,N(-, O,)]
+
+11: function FITFUNCTION(u)
+
+12: 6 =argming E,~,,||N (x, 0) — u(x)||? minimized with Adam
+
+13: Separate last layer weights W from N(a,0) = W' ®g(z) (including bias)
+14: Solve for W from regularized least squares over samples X:
+
+1s. We (®(X)'8(X) + AD)“18(X)'u(X)
+
+16: Assemble 6 < [6),1), W]
+
+return 0
+
+17: function DYNAMICS(6)
+
+18: Let the Jacobian vector product of N(2;,) with v taken with respect to 0 be DN(2;,0)v
+19: Construct efficient MVM M (0) v = Vib So", ||DN(xi, 0)u||?
+20: Construct RHS F'(@) = Vo, SL, LIN] (7, 6)" DN(ai, Ov
+21: Construct rank-r Nystrom predonditioner P using M (0) MVMs
+22: Solve (M (0) + 1) = F (6) for 6 using conjugate gradients with preconditioner P
+23: return 6
+D_ NEURAL-IVP PSEUDO-CODE
+
+The pseudo-code for Neural-IVP is present in Algorithm [I] For reduced clutter, have omitted the
+logic for setting step sizes so that @ will be output by the integrator at the specified times t), t2,...tn.
+Sampling RNG state is updated outside the RK23 step but inside the time evolution while loop.
+
+14

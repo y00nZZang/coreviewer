@@ -1,0 +1,1347 @@
+Under review as a conference paper at ICLR 2023
+
+AXIOMATIC EXPLAINER LOCALITY
+WITH OPTIMAL TRANSPORT
+
+Anonymous authors
+Paper under double-blind review
+
+ABSTRACT
+
+Explainability methods have been notoriously difficult to evaluate and compare.
+Because of this, practitioners are often left guessing as to which explainer they
+should use for their task. Locality is one critical property of explainers which grants
+insight into the diversity of produced explanations. In this paper, we define a set
+of axioms which align with natural intuition regarding globalness, the inverse of
+locality. We then introduce a novel measure of globalness, Wasserstein Globalness,
+which uses optimal transport to quantify how local or global a given explainer
+is. Finally, we provide theoretical results describing the sample complexity of
+Wasserstein Globalness, and experimentally demonstrate how globalness can be
+used to effectively compare explainers. These results illustrate connections between
+both explainer fidelity and explainer robustness.
+
+1 INTRODUCTION
+
+Machine Learning (ML) models are increasingly complex and capable of impressive performance in
+several domains. However, as models become more complex, they also become less interpretable. For
+this reason, researchers have begun to explore the topic of explainability, where model decisions are
+assigned an explanation. These explanations come in many forms, but often indicate how important
+each feature is towards the model prediction.
+
+Explainers need to be trustworthy for their explanations to be valuable. However, ML practitioners
+have very little information at their disposal when deciding which explainer is right for them. Unlike
+traditional ML models, whose accuracy can be computed on held-out testing datasets, there is no
+obvious metric by which we can compare explainers. Ground-truth explanations are rarely known,
+meaning we cannot directly compute the accuracy of an explainer.
+
+Some authors have tried to argue that their explainer is best by proposing a variety of pseudo-accuracy
+
+metrics. When explaining image classifiers, for example, one may follow the lead of {Zhang et al.|
+(2018) and|Wang et al. (2020), by evaluating explainers based on how well they concentrate their
+
+saliency map’s energy around the object of interest. This kind of evaluation-metric is far from
+
+perfect, as it penalizes explainers from using scene context and is heavily biased towards concentrated
+
+saliency. In addition, these psuedo-accuracy metrics are only applicable for the specific task of
+
+feature-attribution for image data, when in reality, there are many other types of explanations and
+
+many other types of data. Clearly, it would be of great interest to the explainability community to be
+
+able to compare and contrast general-purpose explainers for any ML task.
+
+Globalness is a property that can be used to compare and contrast explainers. When one explanation
+fully explains the model’s behavior, we call this a global explanation. In the past, models were
+typically explained globally. For example, feature selection would be done globally, meaning it would
+generate a single group of salient features for the entire dataset (Song et al.|{2010}/Yu & Liu}
+
+John et al. 1994} Dy & Brodley| 2004). More recently, in order to explain complex black-box models,
+it has become common to generate instance-wise explanations rather than a single explanation for
+the entire model. In this case, the explainer outputs local explanations which apply to only a subset
+of the model inputs. Since this distinction between local explainers and global explainers emerged,
+researchers have begun to acknowledge locality/globalness as a property of explainers.
+
+Globalness is a meaningful property of explainers because it indicates how uniform the explanations
+are. In some cases, we expect or even desire all explanations to be similar to one another. Globalness
+Under review as a conference paper at ICLR 2023
+
+is also related to the concept of stability and robustness. The robustness of an explainer is limited by
+its globalness, and we can even use an explainer’s globalness to measure its local-robustness, since
+an explainer that is robust to small changes in the input will be near-global in a local neighborhood
+of the input space. This is another way in which a measure of globalness can facilitate a better
+understanding of our explainers, and allow us to compare/contrast their behavior.
+
+In this paper, we study the property of globalness. We provide a novel way to measure it, and present
+several examples of how to use it in practice. To our knowledge, this is the first work that has provided
+a formal measure for explainer locality/globalness. We believe that this advances the field by enabling
+a more thorough analysis of various explanation techniques. With our measure of globalness, one can
+compare and contrast explainers in a way that was previously difficult and heuristic.
+
+The contributions of the paper are as follows. First, we introduce intuitive axiomatic properties
+which align with human intuition surrounding the notion of locality/globalness. Second, we propose
+Wasserstein Globalness, a novel measure of globalness, that satisfies all these properties. We also
+present theoretical results regarding the sample complexity of estimating Wasserstein Globalness.
+Finally, through our experiments, we demonstrate how explainers can be differentiated by their
+globalness, and make a connection between globalness and adversarial robustness.
+
+2 RELATED WORK
+
+As mentioned before, the community has struggled to effectively evaluate explainers, since real-world
+data rarely comes with ground-truth explanations. For this reason, several authors have turned to
+synthetic data, where the relevance of features are known {2018} 2017). Instead of
+accuracy, others seek to describe explainer properties like transparency, sparsity, or robustness, in
+order to inform ML practitioners’ choice of explainer (Zhang et al.|[2021}. Because of the interaction
+between the data and explainer, we often want to describe properties of an explainer when applied to
+a specific data sample, like locality. A measure of globalness which accounts for both the data and
+explainer would provide a quantitative method for comparing and contrasting different explainers.
+
+Several authors have discussed the locality/globalness of explainers. For example, |Doshi-Velez &
+describe two types of explainers: local and global. They claim that global explainers are
+useful for scientific understanding or bias detection, and local explainers are useful for understanding
+specific model predictions. [Zhang et al.( surveys the interpretability literature and categorizes
+explainers along several axes. One of these axes is related to the locality of the explainer, where
+explainers are either "global", "local", or "semi-local". The distinctions provided by[Doshi-Velez &
+{Kim| (2017); Zhang et al. (2021) are categorical rather than continuous. Though the community has
+begun to consider this property, there is still no formal continuous measure of locality/globalness.
+
+One common explainer, LIME, requires the user to specify a kernel width which is roughly related to
+
+locality/globalness (2016). Anchors are a rule-based explanation given by a constrained
+optimization problem, where the objective is the "coverage" of the anchor (Ribeiro et al.|/2018). An
+anchor’s coverage indicates how broadly applicable the rule is, thus this is also directly related to
+locality/globalness, but is tied directly into the objective of the explainer.
+
+Some authors, like[Ribeiro et al.|(2016), offer ways to construct a single global explanation from many
+
+local explanations, thereby granting a higher-level understanding of the model. While this offers
+explanations at two levels of globalness, we emphasize that this is again only a binary distinction.
+While works like this acknowledge the property of locality and its importance to explainability, they
+offer no way to quantify the locality of an explainer.
+
+The need for a measure like this is becoming increasingly apparent as more researchers study the
+theory of explainability. For example, (2020) define an object called the neighborhood
+disjointedness factor in order to study the generalization of finite-sample based local approximation
+explainers. Neighborhood disjointedness measures roughly how far apart points are from one another,
+and could be applied to explanations as a measure of globalness. However, this is limited to a small
+class of explainers, and does not apply to general explanation frameworks.
+
+We advance the existing literature by formalizing the property of explainer globalness, and proposing
+a method for measuring it in practice. This is a new tool that the machine learning community can
+Under review as a conference paper at ICLR 2023
+
+use to better understand how our explainers interact with our data. We can order explainers by their
+globalness, identify grouped explanations, and compare explainers.
+
+3. METHOD FORMULATION
+
+There are a number of different ways one could measure the locality/globalness of an explainer. In
+order to guarantee the quality of our approach, we will first discuss the properties which should be
+satisfied by any measure of explainer globalness. In Section! these will be stated as axioms which
+align with our intuition about globalness. In Section we will briefly review why other reasonable
+approaches fall short according to these properties. Then, in Section[3.4] we will give our definition
+of globalness and demonstrate that it satisfies all of these axioms.
+
+3.1 NOTATIONS
+
+Consider a black-box prediction model f : ¥ + Y C R°, where ¥ C R? is the space of model
+inputs, Y is the target, d is the dimension of the data, and c is the number of class labels. An explainer
+for this model is a function E : Y — E, where the outputs of the explainer are called explanations,
+and comprise the space €. The space € is either a subset of R¢ for feature-attribution explainers, or
+the vertices of a hypercube, {0, 1}¢ for feature-selection explainers. We will use P(E) to denote
+the set of probability distributions over the space of explanations, €. Let js € P(E) be one such
+probability distribution, generated by passing the data through our explainer. A metric measure space
+(mm-space) is a 3-tuple (E, dg, ), where E is the space of explanations, and d¢ is a distance metric
+between explanations.
+
+Explanation Framework E Distance Measure
+Feature Attribution R? Cosine
+Feature Selection {0,1}4 Hamming
+Table 1: Recommended metric spaces for common explanation frameworks.
+
+For p € P(X) and q € P(Y), I (p,q) will denote the set of joint distributions in P(X x Y) which
+marginalize to q and p. 6, will denote the Dirac measure centered at x, which takes the value 1 at x
+and 0 elsewhere. We will denote the push-forward measure of 1s by ¢ as ¢4p(A) = p(671(A)). For
+ease of reference, a summary of the notation used in this paper is in Appendix [A]Table[2]
+
+3.2 DESIRED PROPERTIES OF A GLOBALNESS MEASURE
+
+In this section, we introduce the desired properties of a general globalness measure G : P(E) > R,
+which assigns a real value to a distribution of explanations. Our properties state that measure should
+be non-negative, continuous, convex, and should encode similarity between explanations.
+
+Property 1 (Non-negativity) For all mm-spaces (€,d¢, 1), the globalness is non-negative, i.e.,
+G(u) = 0.
+Property 2 (Fully-local measure) Let U be the uniform distribution on €. Then
+
+w=U = G(u) =0 (1)
+states that the uniform distribution gives zero globalness, and states that this is
+
+the minimum-globalness distribution for a given (E, de).
+
+Property 3 (Fully-global measure) A fully global explainer is one which produces the same ex-
+planation for every input, meaning its distribution of explanations can be represented by a Dirac
+distribution 6,,,. Formally, there exists an a9 € € for which G,(dz,) > Gp(js) for all pp € P(E).
+Property 4 (Continuity) Let {y,,} be a sequence of probability distributions which converge in
+distribution to 2. Then Gp(Jin) + Gp().
+
+This property claims that the globalness should be continuous with respect to the input distribution.
+
+In practice, the underlying distribution jz is often unknown, and we need to approximate it with
+an empirical distribution j1,,, where n is the number of samples. [Property 4] guarantees that G can
+Under review as a conference paper at ICLR 2023
+
+be approximated by sampling from ju and finding the globalness of an empirical distribution j1,.
+Theorem[2} discussed in Section/4] will characterize the rate of this convergence in more detail.
+The need to account for distance between explanations. Before we introduce the next property, we
+will motivate it by discussing the geometry of €. A measure of globalness should take into account
+a notion of difference between explanations, this can be captured by introducing a distance metric,
+de. For an illustrative example as to how globalness is related to the geometry of explanations, refer
+to Figure [I] Both distributions yield one of two explanations with equal probability. These two
+explanations are at a hamming distance of | for the left explainer, and a distance of two for the right
+explainer. Since the explanations are more varied for the right explainer, it is less global.
+
+More global Less Global
+
+os os
+04 04
+03 P 03 P
+02 02
+ol ol
+00 00
+1 1
+
+0 e 0 e
+
+- =
+Feature 1 0 € Feature 1 Oo
+
+Figure 1: Two distributions of feature-selection explanations on {0,1}? (red), the vertical axis
+represents the probability of seeing that explanation. The left distribution is more global because it
+outputs explanations which are closer to one another in the metric space (€, de).
+
+The need for isometry invariance. The previous example demonstrated that globalness should
+account for the distance between explanations. Additionally, when these explanations change, but the
+distances between them do not, the globalness should not change. In Figure[2] we show an example
+of this. The two distributions in this figure are equivalent up to a re-ordering of the features. Clearly,
+we would consider both of these to be equally global, because one distribution is simply a reflection
+of the other. Transformations like this, rotations and reflections, are referred to as isometries. The
+following property states that a measure of globalness should be invariant to isometries.
+
+Property 5 (Isometry-invariance) Let T¢\4, be the group of distance-preserving measurable maps ¢.
+Then,
+
+Tea = {0 E + Elde(x,y) = de(9(x), O(y)), Vay € EF (2)
+
+Then G is invariant with respect to the group Te a,:
+G(u) = G(dxu) for all ¢ € Te ae (3)
+Additionally, let S' denote all the measurable bijective maps «) : € > €. Then G is not invariant to S:
+There exists some ~ € S for which G(j) A Gwe) (4)
+
+This axiom states that globalness is invariant to isometries of the explanations €, but not arbitrary per-
+mutations. First, Equation [3]stated that G' should be invariant to distance-preserving transformations
+of the explanation-space. Because globalness measures roughly how similar the set of explanations
+are to one another, any rigid transformation (rotation, reflection, etc.) of the space of explanations will
+have no effect on the globalness. Recall that we want globalness to measure roughly how similar the
+explanations are. This notion of similarity is directly encoded by the distance dg, hence an isometry
+which does not change these distances should not change the globalness.
+
+There is one more situation that we want our properties to address: when two sets of explanations are
+combined, how does the globalness change? The following property answers this question.
+
+Property 6 (Convexity) If the explanations from two explainers are combined, the combined distri-
+bution will yield a lower globalness than the average globalness of the original explainers. Formally,
+let R = AP+(1—A)Q for some  € [0, 1] and P,Q € P(E). Then G(R) < AG(P) + (1—A)G(Q).
+This property states that G' is convex with respect to distribution 1, implying that a mixture of two
+explainers is less global than the average of each explainer’s globalness. By mixture, we mean
+probabilistically generating explanation E(x) with probability p or generating explanation E(x)
+Under review as a conference paper at ICLR 2023
+
+Isometric Distributions
+
+05 05
+04 04
+03 P 03 P
+02 02
+01 01
+00 00
+1 1
+0 rs ) £
+od &
+é é
+
+Feature, 7 1 °¢ Featun, 7 1 08
+
+Figure 2: An example of two sets of explanations. Though the distributions are different, they can be
+
+obtained from one another by simply swapping the ordering of the features. This corresponds to a
+reflection, which is an isometric transformation.
+
+with probability (1 — p) independently for each x € XY. Concavity is a common requirement of
+diversity measures. For example in genetics, where biological diversity is measured, the diversity
+of two populations combined is expected to be greater than the diversity among one population
+(Ricotta|/2003). We instead require convexity because globalness is inversely related to the diversity
+of explanations.
+
+3.3. CANDIDATE MEASURES
+
+We have considered several "candidate" approaches for G'. We will now discuss some of these, and
+illustrate why they fall short as a measure of globalness.
+
+Shannon Entropy. Since globalness is related to how diverse the explanations are, one might
+initially consider using the Shannon Entropy of the explainer’s outputs as a measure of locality
+
+(Shannon 1948),
+
+H(X) = E[ — log(p(X))] (5)
+
+Entropy is maximized when all the outcomes are equally likely, and minimized when the explainer
+only generates one explanation for all of the data, clearly satisfiying Properties 1 — 3. In fact, entropy
+satisfies several of our desiderata in Section[3.2] but fails on[Property 5] Entropy cannot distinguish
+between how similar explanations are to one another.
+
+F-Divergences. One might also consider measuring globalness with an f-divergence
+between the distribution of explanations j1, and the uniform distribution, U:
+
+Dj(PI]Q) =B.~al (5)
+
+Remark (Alternative approaches). Shannon entropy and f-divergences both violate|Property 5]
+
+(6)
+
+F-divergences fail for the same reason that entropy failed. They consider only the probability of each
+explanation and ignore the degree of similarity between them. The proof of this remark is given in
+
+Appendix
+
+3.4 THE PROPOSED APPROACH
+
+The framework presented in this paper is very general. Only a metric space (€,d¢) needs to be
+defined. For common explanation frameworks, recommended choices for d¢ are listed in Table [I]
+Given a metric space (€, de), we propose to measure the p-Wasserstein Globalness of j1, denoted
+G,(1), as the Wasserstein distance between j: and the uniform measure on € (Kanorovc [960
+Intuitively, the Wasserstein distance metric between distributions P and Q measures how mucl
+
+"work" one would have to do to move probability mass from P until it matches Q. For this reason, it
+is sometimes called the earth-movers distance when p = 1.
+Under review as a conference paper at ICLR 2023
+
+Definition 1 (Wasserstein Globalness).
+
+Gp(u) = dy (u,U) (7)
+= inf Evynnld2(x,y)}/? (8)
+well (p,U)
+
+For all of our experiments, we will have p = 1, but p is left general in the remainder of the paper, with
+the exception of Theorem[2] where p affects the convergence of approximate solutions to Equation[7]
+
+Theorem 1. The Wasserstein Globalness G, : P(E) > R satisfies Properties 1-7. Where P(E) is
+the set of probability distributions over E.
+
+The proof of Theorem[I]is provided in Appendix |C] Because it satisfies these intuitive properties, the
+Wasserstein Globalness is a satisfactory way to quantify the globalness of an explainer.
+
+4 SAMPLE COMPLEXITY
+
+In practice, we do not work with the true distributions j. and U, but their discrete approximations.
+iid
+
+The discrete approximation for a distribution p is defined as py = id ye , Ox, for X; ~ p.
+Using a discrete approximation for the uniform distribution allows us to estimate the Wasserstein
+Globalness with a discretized formulation:
+
+Definition 2 (Empirical Wasserstein Globalness).
+
+Gu) = diy (M, Un) (9)
+
+In this section we address the question of how accurately Gp(un) approximates G’, (1). Fortunately,
+there are related works that have studied the convergence of empirical distributions under the
+
+Wasserstein metric, notably by {Fournier & Guillin| (2015); {Dereich et al.|(2013). These prior results
+
+provide the foundation for the following theorem.
+Theorem 2. Let p be the order of the Wasserstein Globalness, and let My(1) = fia |a|*du(). If
+p € (0,d/2),q#d/(d—p), q> pr then:
+
+E[|G,(4) — Gp(u)|] < anadu§loN- + CpqaMp/"(u)(N-P/4 + N~—P)/4) (10)
+
+From this theorem, we can immediately see that E[|Gp(u) — Gp(tn) |} — 0as N > oo. However,
+increasing d will lead to a looser bound, meaning we need more samples as N increases. This is a
+problem if we want to compute Wasserstein Globalness in high-dimensional problem settings like
+computer vision tasks. To scale to high dimensions, we utilize the Sinkhorn Distance (Cuturij 2013),
+which is described in Appendix[B]
+
+5 EXPERIMENTS
+
+Wasserstein Globalness allows us to compare and contrast explainers. In this section, we demonstrate
+certain insights it can provide about both our data and our explainer. In this section, we will
+present two kinds of experiment. The first demonstrates how globalness can help identify clustered
+explanations. The second type of experiment uses globalness to identify how locally-stable an
+explainer is. The code used in all following experiments will be made publicly available.
+
+Datasets. Our first experiment uses a simple synthetic dataset where the ground-truth explanations
+are known. To create this dataset, we generate d Gaussian clusters in R¢. Each cluster has a single
+(known) relevant feature. We use two other mae in these experiments, which contain high-
+dimensional image data. The first, MNIST (Deng}|2012), is comprised of grayscale images depicting
+handwritten digits 0-9. The last dataset, FERS [Krizhevsky| [Krizhevsky] (2009p, is comprised of 32x32 color
+images. The targets in CIFAR-10 are one of ten — of common objects.
+Under review as a conference paper at ICLR 2023
+
+Jeoged-Boundary Results
+
+MNIST results
+— Deep HAP
+— Integrated Gradients
+— Gratients
+— GuidedBackprop
+— smoothGrad
+
+025
+
+Number of classes scale ef perturbations Seale of peturbatens
+
+(a) Identifying Grouped Explanations. (b) Jagged Boundary Results.
+
+Figure 3: (a) Identifying Grouped Explanations. The results of computing Wasserstein Globalness
+for a variable number of classes, on the MNIST dataset. As we explain an increasing amount of digits,
+the explanations become more local. (b) The results of the jagged-boundary experiment. The
+accuracy of both the explainers and the model (left) decrease as the Wasserstein Globalness (right)
+becomes more varied. These results are aggregated across 15 total runs (new data each time). We
+show the mean + one standard deviation of Wasserstein Globalness.
+
+Explainers. Before describing the experiments, we will briefly discuss the explanation methods
+used in the experiments. The Gradients method directly uses the gradient
+of class score with respect to the input image as a saliency map. The Integrated Gradients method
+accumulates this gradient at several points along a path from some baseline input to the input
+to be explained 2077). The Expected Gradients method extends integrated
+gradients by allowing a distribution over baselines, and computing the expected value of integrated
+gradients with respect to this distribution (Erion et al] pootp. The SmoothGrad method smooths
+the gradients with a Gaussian kernel to alleviate the high frequency fluctuations commonly seen
+in partial derivatives [2017). The Deep-SHAP method (Lundberg & Lee|
+approximates shapley values by extending the DeepLIFT algorithm (Shrikumar et al.|/2017). LIME
+6) forms a local-approximation to the decision boundary by training a linear model
+
+(Ribeiro et al.}[2016)
+on distance-weighted samples from the input 4’. Guided Backpropagation (Springenberg et al.\!2015)
+
+modifies the gradient approach by adding a signal that prevents the backwards flow of negative
+gradients during backpropagation.
+
+Identifying Grouped Explanations. In some problems, one may observe that certain groups of
+inputs receive similar explanations. In this case, it could be beneficial to determine how many such
+groups exist. Our technique allows us to answer such questions because the number of clusters
+is inversely related to globalness. In this section, we demonstrate this relationship empirically.
+Specifically, we observe that the Wasserstein Globalness decreases as we add more classes because
+the explanations for images in a given class will receive similar explanations. We train a simple MLP
+classifier on the previously described MNIST dataset, with no regularization and hidden layers of
+size 300, 500, and 300 respectively. We use cross-entropy loss, and train for 5 epochs.
+
+For all image-data in our experiments, including MNIST, we use a feature attribution explainer.
+Feature attribution explainers score each feature according to its importance. Because of this,
+explanations fall in R¢ rather than {0,1}¢. We again follow the canonical distance metric from
+Table}1| we will endow our metric space (€, dg) with the cosine distance: deos(z, y) = 1 — Taal
+Figure]3a|shows the results of this experiment. As expected, each explainer correctly decreases its
+Wasserstein Globalness as we increase the number of digits explained.
+
+Identifying Local Explainer Stability. If explanations change drastically after a very small change
+to the input, this explainer may be considered less trustworthy because we expect our explainers to
+be locally-stable. Of course, the degree of this stability depends on the specific problem in question.
+We will later discuss how this explainer-stability is related to the classifier’s stability. By evaluating
+Wasserstein Globalness in a small neighborhood around a single data point, we can see how robust
+the explainer is to such perturbations. The following experiments demonstrate this insight.
+Under review as a conference paper at ICLR 2023
+
+Original Data Original Boundary Jagged Boundary (degree = 0.2)
+
+Feature 2
+
+10 -05 00 OS 10 15 20
+Feature 1
+
+Figure 4: A visualization of the synthetic data in R?. Data points are illustrated as dots, with color
+corresponding to class label. Each of the two clusters utilizes a different feature to discriminate
+between the two classes. The original data is shown (left), alongside a zoomed-in visualization of
+the original boundary (middle), and a zoomed-in visualization of our jagged-boundary modification
+(right).
+
+In our first stability experiment, we use the synthetic data shown in Figure/4] We attempt to fool the
+explainer by making the originally-straight decision boundary jagged, thereby obscuring the true
+relevant feature. To make this boundary jagged, we randomly visit a point x, then flip all nearby points
+x’ to the label of x, ensuring that visited points x and x’ are never revisited. This data modification is
+illustrated in Figure/4] and pseudocode is provided in Appendix[A] Algorithm[]] In this experiment,
+we select the feature with the highest attribution, and use the hamming distance in our explanation
+space: dy (x,y) = >>; 1(a; A yi). The results in Figure|3b]demonstrate how Accexp is related to the
+explainer globalness, G, in this synthetic-data experiment. We expect that, as explainers become less
+accurate, the variance of their globalness increases. Accurate explainers, on the other hand, should
+yield globalness values which are consistently close to the ground-truth globalness.
+
+In Figure[3b] we see the relationship between Acce,, and Wasserstein Globalness. As the explainer
+accuracy decreases, the Wasserstein Globalness varies farther from the ground-truth Globalness.
+Furthermore, the integrated gradients method is more robust to the jagged boundaries, and this is
+reflected in it having the smallest standard deviation of Wasserstein Globalness.
+
+We conduct our next experiment on the CIFAR-10 dataset (Krizhevsky}|2009). This experiment
+demonstrates how globalness can be used as an indicator of explainer robustness in a local neigh-
+
+borhood. First we train a CNN on the dataset as our classification model. We generate a set of
+inputs by taking one CIFAR-10 image and performing 300 independent adversarial attacks on that
+image. Each adversarial input is explained, and we evaluate the Wasserstein Globalness for that set
+of adversarial inputs. This is repeated several times, each time allowing stronger adversarial attacks.
+Each time we evaluate Wasserstein Globalness we are evaluating it in a larger local neighborhood of
+&. By doing this, we can examine how globalness differs for different explainers. Though we do
+not know the ground-truth globalness for these images, we expect the globalness to be maximum in
+this setting, since feature importances should not be affected by very small perturbations. We are
+primarily interested in perturbations which are small enough that the classifier still performs well.
+Intuitively, we hope that, as long as the classification does not change, the reason for the classification
+should also remain roughly constant. Figures[5]and[6]show that, even with only 300 explanations, in
+32 x 32 x 3 dimensions, the Wasserstein Globalness can differentiate the explainers.
+
+In Figure [5] we can see how explanations change after the adversarial attacks. This figure also
+illustrates that the perturbed images are not too different from the original image. Though the
+images are perceptually near-identical, the explanations can be seen to change, leading to a change in
+globalness. In Figure|6] we observe exactly how this globalness changes for the batch of explanations
+at each a. The deep-SHAP explainer is the most robust to local perturbations (Wasserstein Globalness
+close to maximum for a variety of o), and that the Gradient and SmoothGrad explainers are the
+most sensitive. This result is not surprising, as SmoothGrad injects noise in order to perform the
+smoothing operation, and the Gradient approach is the most naive, forming the basis for many of the
+other approaches.
+Under review as a conference paper at ICLR 2023
+
+Inputs Deep-SHAP i ‘SmoothGrad Gradients
+0 = 0.000 G = 1.0000 = 03951 ‘G= 09925 G= 1.0005
+
+= 0010
+
+a= 0.020
+
+a= 0.030 G= 0.9879 G= 0.9842 G= 09504 G= 09618 G= 09788
+
+Figure 5: The perturbed input image is shown in the left column. The remaining columns correspond
+to different explanation methods, and show an explanation overlayed on the original image.
+
+099
+08
+
+098
+
+©
+&
+
+097
+
+Model Accuracy
+
+°
+g
+
+0.96
+
+Wasserstein Globalness
+
+Deep-SHAP
+
++ \
+gs | “Expected Gradients A
+“@ SmoothGrad 02
++
++
+
+Gradients
+
+094 Integrated Gradients
+
+0.000 0.005 0010 0015 0.020 0025 0.030 0.000 0.005 0.010 0.015 0.020 0.025 0.030
+Adversarial Radius Adversarial Radius
+
+Figure 6: The Wasserstein Globalness for each explainer in our CIFAR-10 experiment (left). The
+results of 11 separate runs are plotted in the same color for each explainer. The bold line with markers
+of that color represents the mean across all 11 runs. We also indicate the classifier accuracy (right) in
+order to indicate the point at which the perturbations become too strong for the explainer.
+
+6 CONCLUSION
+
+Explainability is a branch of machine learning that not only facilitates trust between the user and
+the model, but also allows us to learn from our models. Thus, it is critical that we understand our
+explainers to use them reliably. In this paper, we have argued that globalness is a theoretical property
+of explainers which can be valuable to the explainability community. We introduced Wasserstein
+Globalness, a model-agnostic method for measuring the globalness of explainers which satisfies
+intuitive axioms regarding the notion of globalness. Finally, we presented experimental results which
+demonstrate how globalness can be used to differentiate explainers and choose the best one for a
+given task.
+Under review as a conference paper at ICLR 2023
+
+ETHICS STATEMENT
+
+As ML models grow in both complexity and popularity, they have also become less interpretable.
+These complex models often exhibit surprising behavior. In extreme cases, they can propagate racial
+and gender bias and even put humans in physical danger. However, even the benign cases erode trust
+between the user and the model. ML practitioners are responsible for the harmful effects of their
+models, and are therefore are obliged to build reliable, trustworthy systems.
+
+Explainability is one way in which we can begin to build trustworthy models. It is crucial that we
+seek a better understanding of uninterpretable models in order to deploy them safely in the real
+world, whether that means building interpretable models in the first place or explaining them after
+the fact. In this paper, we discuss a theoretical property of explainability methods, and present a
+technique for measuring this quantity in practice. We intend for our globalness measure to facilitate
+responsible practices by enabling humans to better understand their models. This understanding can
+facilitate responsible decisions, enable practitioners to remove harmful behavior from their systems,
+and increase our trust in the models themselves.
+
+REFERENCES
+
+Jianbo Chen, Mitchell Stern, Martin J Wainwright, and Michael I Jordan. Kernel feature selection via
+conditional covariance minimization. Advances in Neural Information Processing Systems, 30,
+2017.
+
+Jianbo Chen, Le Song, Martin Wainwright, and Michael Jordan. Learning to explain: An information-
+theoretic perspective on model interpretation. In International Conference on Machine Learning,
+pp. 883-892. PMLR, 2018.
+
+Imre Csiszar. Eine informationstheoretische ungleichung und ihre anwendung auf beweis der
+ergodizitaet von markoffschen ketten. Magyer Tud. Akad. Mat. Kutato Int. Koezl., 8:85—108, 1964.
+
+Marco Cuturi. Sinkhorn distances: Lightspeed computation of optimal transport. In
+C. J. Burges, L. Bottou, M. Welling, Z. Ghahramani, and K. Q. Weinberger
+(eds.), Advances in Neural Information Processing Systems, volume 26. Curran Asso-
+ciates, Inc., 2013. URL
+
+Li Deng. The mnist database of handwritten digit images for machine learning research. JEEE Signal
+Processing Magazine, pp. 141-142, 2012.
+
+Steffen Dereich, Michael Scheutzow, and Reik Schottstedt. Constructive quantization: Approximation
+by empirical measures. In Annales de l’IHP Probabilités et statistiques, volume 49, pp. 1183-1203,
+2013.
+
+Finale Doshi-Velez and Been Kim. Towards a rigorous science of interpretable machine learning.
+arXiv preprint arXiv: 1702.08608, 2017.
+
+Jennifer G Dy and Carla E Brodley. Feature selection for unsupervised learning. Journal of machine
+learning research, 5(Aug):845-889, 2004.
+
+Gabriel Erion, Joseph D Janizek, Pascal Sturmfels, Scott M Lundberg, and Su-In Lee. Improving
+performance of deep learning models with axiomatic attribution priors and expected gradients.
+Nature machine intelligence, 3(7):620-631, 2021.
+
+Rémi Flamary, Nicolas Courty, Alexandre Gramfort, Mokhtar Z. Alaya, Aurélie Boisbunon, Stanislas
+Chambon, Laetitia Chapel, Adrien Corenflos, Kilian Fatras, Nemo Fournier, Léo Gautheron,
+Nathalie T.H. Gayraud, Hicham Janati, Alain Rakotomamonjy, Ievgen Redko, Antoine Rolet,
+Antony Schutz, Vivien Seguy, Danica J. Sutherland, Romain Tavenard, Alexander Tong, and
+Titouan Vayer. Pot: Python optimal transport. Journal of Machine Learning Research, 22(78):1-8,
+
+2021. URLhnttp://jmlr.org/papers/v22/20-451. html
+
+Nicolas Fournier and Arnaud Guillin. On the rate of convergence in wasserstein distance of the
+empirical measure. Probability Theory and Related Fields, 162(3):707-738, 2015.
+
+10
+Under review as a conference paper at ICLR 2023
+
+George H John, Ron Kohavi, and Karl Pfleger. Irrelevant features and the subset selection problem.
+In Machine learning proceedings 1994, pp. 121-129. Elsevier, 1994.
+
+L. V. Kantorovich. Mathematical methods of organizing and planning production. Management
+
+Science, 6(4):366-422, 1960. ISSN 00251909, 15265501. URL|http://www. jstor.org/
+
+Alex Krizhevsky. Learning multiple layers of features from tiny images. Technical report, 2009.
+
+Jeffrey Li, Vaishnavh Nagarajan, Gregory Plumb, and Ameet Talwalkar. A learning theoretic
+
+perspective on local explainability. In Jnternational Conference on Learning Representations,
+2020.
+
+Scott M Lundberg and Su-In Lee. A unified approach to interpreting model predictions. Advances in
+neural information processing systems, 30, 2017.
+
+Facundo Mémoli. Gromov-wasserstein distances and the metric approach to object matching. Founda-
+
+tions of Computational Mathematics, 11(4):417-487, 2011. URL http: //dblp.uni-trier
+de/db/journals/focm/focm11.html#Memolii1l1
+
+Marco Tulio Ribeiro, Sameer Singh, and Carlos Guestrin. " why should i trust you?" explaining the
+predictions of any classifier. In Proceedings of the 22nd ACM SIGKDD international conference
+on knowledge discovery and data mining, pp. 1135-1144, 2016.
+
+Marco Tulio Ribeiro, Sameer Singh, and Carlos Guestrin. Anchors: High-precision model-agnostic
+explanations. In Proceedings of the AAAI conference on artificial intelligence, 2018.
+
+Carlo Ricotta. Additive partition of parametric information and its associated {-diversity measure.
+Acta Biotheoretica, 51(2):91-100, 2003.
+
+C. E. Shannon. A mathematical theory of communication. The Bell System Technical Journal, 27(3):
+379-423, 1948. doi: 10.1002/j.1538-7305.1948.tb01338.x.
+
+Avanti Shrikumar, Peyton Greenside, and Anshul Kundaje. Learning important features through
+propagating activation differences. In International conference on machine learning, pp. 3145—
+3153. PMLR, 2017.
+
+Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. Deep inside convolutional networks:
+Visualising image classification models and saliency maps. arXiv preprint arXiv: 1312.6034, 2013.
+
+Daniel Smilkov, Nikhil Thorat, Been Kim, Fernanda Viégas, and Martin Wattenberg. Smoothgrad:
+removing noise by adding noise. arXiv preprint arXiv: 1706.03825, 2017.
+
+Fengxi Song, Zhongwei Guo, and Dayong Mei. Feature selection using principal component analysis.
+In 2010 international conference on system science, engineering design and manufacturing
+informatization, volume 1, pp. 27-30. IEEE, 2010.
+
+J Springenberg, Alexey Dosovitskiy, Thomas Brox, and M Riedmiller. Striving for simplicity: The
+all convolutional net. In ICLR (workshop track), 2015.
+
+Mukund Sundararajan, Ankur Taly, and Qigi Yan. Axiomatic attribution for deep networks. In
+International conference on machine learning, pp. 3319-3328. PMLR, 2017.
+
+Haofan Wang, Zifan Wang, Mengnan Du, Fan Yang, Zijian Zhang, Sirui Ding, Piotr Mardziel, and
+Xia Hu. Score-cam: Score-weighted visual explanations for convolutional neural networks. In
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition workshops,
+pp. 24-25, 2020.
+
+Lei Yu and Huan Liu. Efficient feature selection via analysis of relevance and redundancy. The
+Journal of Machine Learning Research, 5:1205—1224, 2004.
+
+Jianming Zhang, Sarah Adel Bargal, Zhe Lin, Jonathan Brandt, Xiaohui Shen, and Stan Sclaroff.
+Top-down neural attention by excitation backprop. International Journal of Computer Vision, 126
+(10):1084—1102, 2018.
+
+11
+Under review as a conference paper at ICLR 2023
+
+Yu Zhang, Peter Tino, Ales Leonardis, and Ke Tang. A survey on neural network interpretability.
+IEEE Transactions on Emerging Topics in Computational Intelligence, pp. 726-742, oct 2021.
+
+doi: 10.1109/tetci.2021.3100641. URL https://doi.org/10.1109%2Ftetci.2021)
+
+3100641
+
+12
+Under review as a conference paper at ICLR 2023
+
+A APPENDIX
+
+Table [2|provides a summary of the notation and terminology used in the paper.
+
+Symbol Name
+ow Push-forward Measure
+I Indicator Function
+Ox Dirac distribution (centered at x)
+E Expected Value
+E Set of Explanations
+x Space of model inputs
+E Explainer
+P(X) Set of probability distributions over X
+U Uniform Distribution
+II(P,Q) Set of joint distributions which marginalize to P and Q
+R Real numbers
+CF Frobenius Inner Product
+dg distance between explanations
+mm-space —_ metric-measure space
+
+Table 2: Summary of notation used in the paper
+
+Algorithm[I] describes the jagged-boundary data modification shown in Figure[4]
+
+Algorithm 1 Jagged-Boundary
+
+Let X be a finite data sample.
+Let label(-) give the label of each point in X.
+Let N,, be a neighborhood around point x.
+while not all points visited do
+for unvisited x do
+for unvisited x’ € N, do
+label(a’) < label(x)
+a’ visited
+end for
+end for
+end while
+
+We measure the wall clock timing of the three different computationally expensive tasks. Because
+these quantities vary with the explainer used and the random input image, we present the average over
+both the explainers and 10 randomly selected CIFAR-10 images. These results are shown in Figuref3]
+
+| Task Average Time (s) |
+| Adversarial Perturbations 56.17 |
+| Generating Explanations 19.42 |
+| Computing Globalness 6.97 |
+
+Table 3: Average wall clock time for the CIFAR-10 experiment. As expected, computing globalness
+is less computationally expensive than generating the explanations themselves.
+
+Figure[7]shows all of the perturbed images from the CIFAR-10 experiment presented inf] Figure[S}is
+formed from a subset of the rows in Figure[7] Figure[8]depicts another set of explanations, witl
+different original input image.
+
+In figure[T]] we show an example of the different perturbed images for a single adversarial radius o.
+
+13
+Under review as a conference paper at ICLR 2023
+
+inputs expGrad deepshap integrated gradients vanillagrad smoothgrad
+a= 0.000 G = 0.9949 G = 1.0000 G = 0.9999 G = 0.9999 G = 0.9877
+
+G = 0.9991
+
+G
+
+oa
+°
+io
+©
+aT
+io)
+oa
+W
+
+°
+‘io
+io)
+a
+©
+
+Q
+I
+2
+°
+3°
+oO
+oa
+iF
+°
+io
+rr)
+5S
+w
+a
+W
+2°
+io
+©
+oO
+w
+
+a= 0.007 G = 0.9933 G = 0.9980 G = 0.9926 G = 0.9845
+
+a= 0.010 G = 0.9923 G = 0.9968 G = 0.9916 G = 0.9842
+ah
+
+a= 0.013 G = 0.9958 G = 0.9885 G = 0.9811
+
+a= 0.017 G = 0.9903 G = 0.9947 G = 0.9949 G = 0.9856 G=0.9751
+
+i
+i s
+io
+©
+N
+N
+id s
+io
+oO
+w
+a
+
+a= 0.020 G = 0.9883 G G = 0.9892 G G = 0.9669
+a 8 a ar
+a= 0.023 G = 0.9865 G = 0.9908 G = 0.9845 G = 0.9654 G = 0.9564
+a= 0.027 G = 0.9851 G = 0.9891 G= 9811 G = 0.9591 G = 0.9481
+a= 0.030 G = 0.9837 G = 0.9877 G = 0.9787 G = 0.9592 G = 0.9434
+
+Figure 7: An extended version of|
+
+B  APPROXIMATING WASSERSTEIN GLOBALNESS IN HIGH-DIMENSIONS
+
+Computing the Wasserstein distance traditionally involves solving a linear programming problem
+which does not scale well. In the previous section, we discussed the sample complexity of Gp(u N).
+This empirical estimate also scales poorly with the dimension of the data. However, several techniques
+have been developed to efficiently compute Wasserstein distances in high dimensions. One such
+technique, called entropy-regularized optimal transport, relies on regularizing the entropy of the joint
+distribution 7 € II(P, Q).
+
+The Wasserstein distance can be written as an optimization over the set of product measures II(P, Q).
+In its discrete form, the expectation E(..y) [de (x, y)] from Equation|7|can be written as a Frobenius
+inner product between the matrix of distances D, and the transport plan R.
+
+dt = mi D ll
+w (P,4) ragin (BR. )F (1)
+
+The sinkhorn distance, introduced to the ML community by {Cuturi} (2073), utilizes a technique called
+entropic regularization. The entropy-regularized transport problem adds an additional regularization
+
+term Q(R) = Yi r;jlog(ri,j)«
+
+14
+Under review as a conference paper at ICLR 2023
+
+inputs smoothgrad deepshap integrated gradients vanillagrad expGrad
+a= 0.000 G = 0.9990 G = 1.0000 G = 1.0000 G=1.0001 G = 0.9900
+
+a= 0.003 G = 0.9997 G = 0.9993 G = 1.0001 G =0.9951 G = 0.9900
+
+“~ © BH HEH SE
+
+a= 0.007 G = 0.9984 G = 0.9986 G = 0.9994 G = 0.9932 G = 0.9898
+Pe Fel
+
+a= 0.010 G = 0.9994 G = 0.9978 G = 0.9988 G = 0.9913 G = 0.9891
+pir i
+
+a= 0.013 G = 0.9985 G = 0.9967 G = 0.9973 G = 0.9871 G = 0.9887
+ee Fe
+
+a= 0.017 G = 0.9988 G = 0.9955 G = 0.9981 G = 0.9807 G = 0.9880
+
+* 8B BM H GE
+
+a= 0.020 G = 0.9992 G = 0.9941 G = 0.9974 G = 0.9837 G = 0.9870
+
+“~ © HB MM &@ GB
+
+oa = 0.023 G = 0.9985 G = 0.9929 G = 0.9963 G = 0.9831 G = 0.9864
+
+a i
+
+a= 0.027 G = 0.9981 G = 0.9913 G = 0.9951 G = 0.9823 G = 0.9852
+
+Sa a!
+
+a= 0.030 G = 0.9975 G = 0.9902 G = 0.9947 G = 0.9823 G = 0.9844
+
+“~ © HH HM M&M GB
+
+Figure 8: Another set of explanations for an image of a deer from the CIFAR-10 dataset.
+
+dsinkhorn(P; 1) = pant oe D)r + AQ(R) (12)
+
+This encourages the transport plan to have less mutual information with the marginals p and q. By
+searching just over these "smooth" transport plans, we have convexified the optimization problem,
+and now can use matrix scaling algorithms to solve it[]] There are also existing theoretical guarantees
+that dsinkhorn Will be close to dy, for which we refer the reader to|C
+
+By utilizing entropic regularization, we can find good solutions faster. However, we can always
+decrease the strength of this regularization in order to eliminate noise from the computation. As we
+have discussed, this is especially useful when we work with high-dimensional data, as is done in]
+
+C PROOF OF THEOREM[L]
+
+We will now restate and prove that the axioms from Section]3.2|apply to the definition of G in Section
+
+'For our experiments, we compute the sinkhorn algorithm using available optimal transport solvers available
+at|Flamary et al.
+
+15
+Under review as a conference paper at ICLR 2023
+
+inputs smoothgrad deepshap integrated gradients vanillagrad expGrad
+a= 0.000 G =0.9991 G = 1.0000 G=1.0001 G=1.0001 G = 0.9891
+
+te
+
+Q
+I
+
+°
+°
+3°
+oO
+oa
+W
+
+°
+‘io
+©
+foo)
+N
+
+oa
+°
+io
+©
+r=
+w
+oa
+W
+
+°
+‘io
+fo-)
+©
+w
+
+a= 0.007 G = 0.9992 G = 0.9900 G = 0.9891
+F |
+
+a= 0.010 G = 0.9987 G = 0.9957 G = 0.9889 G = 0.9888
+F | bs.
+
+a= 0.013 G = 0.9988 G = 0.9943 G = 0.9849 G = 0.9884
+4
+
+a= 0.017 G = 0.9986 G = 0.9930 G = 0.9967 G = 0.9773 G = 0.9878
+
+“al
+W
+° s
+io
+©
+oO
+a
+
+a= 0.020 G G G G G
+
+i
+i s
+io
+©
+ra
+=
+i
+id s
+io
+©
+a
+B
+i
+id s
+io
+x
+a
+°o
+i
+id s
+io
+io)
+a
+°
+
+a= 0.023 G = 0.9977 G = 0.9881 G = 0.9936 G = 0.9762 G = 0.9839
+ay
+
+a= 0.027 G = 0.9971 G = 0.9863 G = 0.9919 G = 0.9773 G = 0.9825
+Kj
+
+Q
+I
+°
+°
+O
+°
+fa}
+W
+°
+‘io
+©
+a
+io)
+fa}
+W
+°
+io
+io)
+&
+B
+oa
+W
+°
+io
+ire)
+fo}
+a
+oa
+W
+°
+io
+x
+x
+a
+oa
+W
+°
+io
+io)
+f=}
+io)
+
+Figure 9: Another set of explanations for an image of a ship from the CIFAR-10 Dataset.
+
+Property Ijstates that G,,(j:) > 0 Vp.
+
+Proof. Since dy is a distance metric, it is non-negative by construction. Therefore G,(P) =
+dw (P, U) is non-negative.
+
+Property 4|Let {,,,} be a sequence of probability distributions which converges in distribution to ju.
+eT lFin) —* Gp).
+
+Proof.
+By remark 2.4 in (Mémolij /2011),
+This implies that
+|dyy (8,0) = diy (Hn Un)| S ayy (Hs ttn) + diy U, Un) (14)
+However, U does not need to be approximated, therefore
+U=Un IGp(14) — Gp (Hn) = |i (1 U) = div (Hn, U))
+< diy (1, Hn)
+
+16
+Under review as a conference paper at ICLR 2023
+
+inputs smoothgrad deepshap integrated gradients vanillagrad expGrad
+a= 0.000 G = 0.9992 G = 1.0000 G=1.0001 0.9996 G = 0.9925
+A
+oa = 0.003 G =0.9991 G = 0.9980 G = 0.9994 G = 0.9962 G =0.9917
+oe Fe 2 & B&B
+a= 0.007 G = 0.9993 G = 0.9960 G = 0.9978 G = 0.9938 G = 0.9907
+a a
+a= 0.010 G = 0.9993 G = 0.9948 G=0.9977 G=0.9919 G = 0.9899
+a a
+a= 0.013 G = 0.9984 G = 0.9933 G = 0.9967 G = 0.9895 G = 0.9889
+ad a
+o=0.017 G = 0.9990 G=0.9915 G = 0.9953 G = 0.9875 G = 0.9877
+eo fe 6S &
+a= 0.020 G = 0.9990 G = 0.9896 G = 0.9953 G = 0.9855 G = 0.9857
+es 2 SB w
+oa = 0.023 G = 0.9983 G = 0.9879 G = 0.9938 G = 0.9833 G = 0.9843
+ed
+o= 0.027 G = 0.9969 0.9859 G = 0.9932 G=0.9814 G = 0.9831
+
+.9850
+
+Figure 10: Another set of explanations for an image of a truck from the CIFAR-10 dataset.
+
+G=
+
+G
+
+oa
+il
+2°
+io
+oo
+wo
+oa
+oa
+2° s
+io
+2
+°
+x
+oa
+il
+bd
+io
+fac)
+N
+wo
+
+0 =0.03
+
+Figure 11: A visualization of the pertubed images used in our CIFAR-10 experiment. These
+correspond to the last row in Figure[7]
+
+But jz, converges in distribution to jz, meaning dj, (11, fun) + 0 |Gp(u) — Gp(pn)| > 0
+
+From this proof we can see that, not only does G,,(j1n) converge to G, (1), but it converges at least
+as quickly as pun > pu.
+
+[Property 3]states that there exists an x € € for which Gp(d.,) > Gp(u) Vu € P(E). Furthermore,
+we will also show that, for this x9, Sx, < 52,» Vu € E, where 8,» is the p-eccentricity, defined in
+as Sp) = fy d?(x, 2’ )da’
+
+Roughly, the p-eccentricity indicates how far a point a is to the rest of the points in €.
+
+17
+Under review as a conference paper at ICLR 2023
+
+P-eccentricity appears in this property in order to characterize the a9 for which 6,,, achieves maximum
+globalness.
+
+Proof. . Without loss of generality, assume sq,» > Sx,p, Vx € €. Any discrete distribution can be
+
+represented as a delta-train P = 5°; \;6(x;) such that A; > 0, Viand $5; A; = 1. By Property 6] 6) we
+know that Gp(P) < 0; \Gip(5(a:)). But for a Dirac measure, [7}reduces to
+
+Gp (5x0) = (f. a? (a~9,)dr) ” = S2x0,p (15)
+
+So
+G,(P) < y AiSxo,p L MALS2;.p = Sxo,p- (16)
+- i
+
+i
+
+This proves the axiom for any discrete distribution. But general distributions can be approximated
+with these weighted delta-trains, so by |Property 4} so in the limit, this proof holds for genera!
+distributions.
+
+Property 2|states that 1» =U <> G(u) =0
+
+Proof. First note that diy,(P, Q) is a metric. From the identity of indiscernibles axiom of distance
+metrics, (v,y) =0 <> x = y. This directly implies that dw(u,U) =0 — > pw =U.
+
+We will now prove the first part of|Property 5| restated below:
+Let Tea, be the group of isometries of (€, dg) defined in Equation[2] Then G’, is Tg q-invariant.
+
+Proof. We need to show that Gp(1) = Gp(d#u), Vb € Tea.
+One consequence of the definition of push-forward measure is that
+
+Pagal Ot) = Py(o ox) = P,(a) E [da] = E [2 a7)
+
+t~b#G w~dq
+
+Consider the set of measure couplings (feasible transport plans) between jz and v, denoted II (ji, v)
+Let hg : I(y,v) > H(d¢p, dy) be given by
+
+hy om(A, B) = 1(¢71A, 71 B) (18)
+Since hy is bijective, and since we have shown in[T7}that Exvr(2] = Exvn,(n)(O(2)], it holds that
+
+Gp(uw) = inf EvayvelP (x, y)]/” (19)
+wel (u,U)
+Because ¢ is an isometry,
+= inf Eeynng ld? (or, oy)” (20)
+well (p,U)
+
+Because E,~ [2] = Exwn,(n)[O(2)],
+
+= inf Ewy non la? (e.y))” (21)
+well (u,U)
+
+Finally, since hy is a bijection between (ju, 7) and I(¢zp, 40),
+
+= inf Evayynold?(@,y)|'/”
+rEIl(b4 1,64)
+
+= Gy(d#n)
+
+18
+Under review as a conference paper at ICLR 2023
+
+We will now prove the second part of|Property 5} which states that 3d : € > € ¢ Te,4, for which
+Gp(oxL) 4 Gp(t), for some pu.
+
+Proof. Consider a ¢ € S, 6: € — E such that de (x, y) = c « de(ox, dy) for some constant c, and
+some x, y € €. Note that ¢ is clearly not in Te 4,, the group of isometries of (€, dg).
+
+Like before, we can write:
+
+Gru) = inf Eveyynnld?(a,y)]'/” (22)
+rel (",U)
+
+= inf — E@ynrld?(w,y)]!” (23)
+TEM (dy H,b4U)
+
+But since ¢ is not isometric:
+
+= inf Eqynale?d?(a,y)]'/” (24)
+rel (Seu.oy4U)
+
+F Gp(o4u) (25)
+
+Property 6] (convexity) Let R be a convex combination of measures P and Q. That is, R =
+XP + (1 — 2)Q for some A € [0, 1]. Then G(R) < AG(P) + (1 — A)G(Q).
+
+Proof. Let P,Q be probability distributions. Let ¢p be the optimal transport plan between P and U.
+Similarly, let dg be the optimal transport plan between Q and U. Then the convex combination of P
+and Q is a feasible transport plan between R = AP + (1 — A)Q and U, so
+
+G(X) = inf EaywvelP (x, y)]/” (26)
+well (u,U)
+
+< E(eynrop-+(1-djbo (4? (x, y)/? (27)
+
+= AE (ey) ropa? (x, y)]'/? + (1 = A)E(ey)~4q ld? (w, y)]'/? (28)
+
+= AG)(P) + (1— A)G,(Q) (29)
+
+D_ PROOF OF THEOREM[2]
+
+We will first introduce two lemmas to simplify the proof of theorem 2} The first lemma concerns
+the error incurred by approximating with finite samples. The second lemma concerns the error
+incurred by approximating U with finite samples. By bounding both of these errors, we obtain an
+upper bound on the error of using both finite-sample approximations.
+
+Lemma 1. Let p € (0, d/2). Also, let q # d/(d— p). Let My(t) = fea |x|4dp(x). Then for some
+constant Cy ,q,q which depends only on p,q, and d,
+
+E[IG (4) — Gp(uw)|] < Cp.qa Mle! 4(u)(NP/4 + N-P)/2) (30)
+Proof. From the triangle inequality,
+diy (HU) < diy (u,U) + diy (Hy #) (31)
+From (Fournier & Guillin||2015), Eldj.(un.1)] < Cy.qaMe!4(u)(N-P/4 + .N~(4-?)/4),
+* E[Gp(4n)] — Gp(4) S Cp.qaMp/(p)(N-P/4 + N~O-P/4) (32)
+
+19
+Under review as a conference paper at ICLR 2023
+
+Similarly, we can invoke the triangle inequality with d},,(j4,U) on the LHS:
+
+diy (HU) S diy (un, U) + diy (Hn, 1) (33)
+And, making the same argument, we get:
+So
+Gp(#) — ElGp(uw)] S Cy.qaMlg/(H) (NP + NAPA) (34)
+
+Finally, combining [32|and[34]
+E[lG@p(4) — Gp(uw)I] S Cp,qaMlh/"(u)(N-P/4 + N~-P)/2)
+
+This theorem is related to[Property 4]in the sense that the empirical distribution pu erty si to pu.
+
+This theorem is concerned with the rate at which G(x") converges, whereas |Property 4/simply
+states that it will converge.
+
+Perhaps the most important consequence offl]is that E[|Gp(u) — Gp(un)|] > 0asN > ow.
+
+Lemma 2. Let p € (0, $), and q > rad Then for some constant Kp,q which depends only on p and
+qd
+
+E[IGp(14y) — Gpleew)I] < Kral f, eltan(a)] V4 G5)
+R
+Proof. From the triangle inequality:
+dw (un, Un) < dw(un,U) + dw(Un,U) (36)
+=> dw (un, Un) — dw (un, U) < dw (Un, U) (37)
+
+From (Dereich et al.| |2013), there exists some constant kK», such that E[dj(Un.U)] <
+/Iy7—
+Kep.a [Spa lx ||"du(2)] ‘n-V4,
+
+= Eldw (uy, Uy) — dw (un, U)] < Eldhy On, UY] < rp.9[ Jae lle @de(a)] N-M4
+
+= E[Gp(nw) — Gp(uw)] < eral zu lel dy(@)] N-¥/4
+Similarly:
+dw (un,U) < dw (un, Un) + dw(Un,U)
+==> dw (un,U) — dw(un,Un) < dw(Un,U)
+
+So we have that:
+
+E[|Gp(ux) — Spleen Il < nal [ lll dye(x)] 4-4 (38)
+
+We will now combine the previous lemmas to get a final bound on the approximation error incurred
+by using discrete approximations for both jz and U.
+
+Proof. The following one-line proof is a natural consequence of lemmas|I]and[2}
+
+E[|G, (1) — G(u)l] < El|G, (uv) — Gp(uw)|] + EG, (e) — Gp (en) I]
+< kp,ql i \jx||2ayu(x)] NY + Cy ga MP/4(p)(N-P/4 + N~G-PY/2)
+Re
+
+= EllGp(un) — Spl) S Rpg Mg(u)4N-M4 + CpyqaMlp/1(u)(N-P/4 + N~O-P)/4)
+
+20
+Under review as a conference paper at ICLR 2023
+
+E_ PROOF OF REMARKB.3]
+
+Proof. Let w € S be a permutation of the set of explanations.
+
+By Equation|T7] a direct consequence of the definition of push-forward measure, we have that:
+
+Eexulo(H(@))] = Exwvyulo(epu(@))] (39)
+for some function g.
+
+Now observe that both entropy and f-divergences, as defined in Equations|5]and respectively, can
+be written in the form above. Entropy is obtained by directly letting g(a) = — log(x).
+
+A(X) = Exx,[- log(u(2))] (40)
+
+The f-divergence between ji and U is equivalent by allowing g(x) = f(<), and allowing the constant
+c to be the uniform probability of an element x, U(x). .
+
+U(2)
+p(x)
+
+D(U||2) = Exxy[f(S)| (41)
+
+21

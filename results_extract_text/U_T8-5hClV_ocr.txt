@@ -1,0 +1,1821 @@
+Published as a conference paper at ICLR 2023
+
+A PRIMAL-DUAL FRAMEWORK FOR TRANSFORMERS
+AND NEURAL NETWORKS
+Tam Nguyen*
+
+Department of ECE
+Rice University
+
+Tan M. Nguyen*
+Department of Mathematics
+University of California, Los Angeles
+
+tanmnguyen89@ucla.edu
+
+Nhat Ho
+Department of Statistics & Data Sciences
+
+nguyenminhtam9520@gmail.com
+
+Andrea L. Bertozzi
+Department of Mathematics
+
+University of California, Los Angeles
+bertozzi@math.ucla.edu
+
+University of Texas at Austin
+minhnhat@utexas.edu
+
+Richard G. Baraniuk**
+Department of ECE
+Rice University
+richb@rice.edu
+
+Stanley J. Osher**
+
+Department of Mathematics
+University of California, Los Angeles
+sjo@math.ucla.edu
+
+ABSTRACT
+
+Self-attention is key to the remarkable success of transformers in sequence model-
+ing tasks including many applications in natural language processing and computer
+vision. Like neural network layers, these attention mechanisms are often developed
+by heuristics and experience. To provide a principled framework for constructing
+attention layers in transformers, we show that the self-attention corresponds to the
+support vector expansion derived from a support vector regression problem, whose
+primal formulation has the form of a neural network layer. Using our framework,
+we derive popular attention layers used in practice and propose two new atten-
+tions: 1) the Batch Normalized Attention (Attention-BN) derived from the batch
+normalization layer and 2) the Attention with Scaled Head (Attention-SH) derived
+from using less training data to fit the SVR model. We empirically demonstrate the
+advantages of the Attention-BN and Attention-SH in reducing head redundancy,
+increasing the model’s accuracy, and improving the model’s efficiency in a variety
+of practical applications including image and time-series classification.
+
+1 INTRODUCTION
+
+Transformer models (Vaswani et al., 2017) have achieved impressive success with state-of-the-art per-
+formance in a myriad of sequence processing tasks, including those in computer vision (Dosovitskiy
+et al., 2021; Liu et al., 2021; Touvron et al., 2020; Ramesh et al., 2021; Radford et al., 2021; Arnab
+et al., 2021; Liu et al., 2022; Zhao et al., 2021; Guo et al., 2021), natural language processing (Devlin
+et al., 2018; Al-Rfou et al., 2019; Dai et al., 2019; Child et al., 2019; Raffel et al., 2020; Baevski &
+Auli, 2019; Brown et al., 2020; Dehghani et al., 2018), reinforcement learning (Chen et al., 2021;
+Janner et al., 2021), and other important applications (Rives et al., 2021; Jumper et al., 2021; Zhang
+et al., 2019; Gulati et al., 2020; Wang & Sun, 2022). Transformers can also effectively transfer
+knowledge from pre-trained models to new tasks with limited supervision (Radford et al., 2018;
+2019; Devlin et al., 2018; Yang et al., 2019; Liu et al., 2019). The driving force behind the success of
+transformers is the self-attention mechanism (Cho et al., 2014; Parikh et al., 2016; Lin et al., 2017),
+which computes a weighted average of feature representations of the tokens in the sequence with the
+weights proportional to similarity scores between pairs of representations. The weights calculated by
+the self-attention determine the relative importance between tokens and thus capture the contextual
+representations of the sequence (Bahdanau et al., 2014; Vaswani et al., 2017; Kim et al., 2017). It has
+
+* Co-first authors. ** Co-last authors. Please correspond to: tanmnguyen89 @ucla.edu
+Published as a conference paper at ICLR 2023
+
+been argued that the flexibility in capturing diverse syntactic and semantic relationships is critical for
+the success of transformers (Tenney et al., 2019; Vig & Belinkov, 2019; Clark et al., 2019).
+
+1.1 BACKGROUND: SELF-ATTENTION
+
+For a given input sequence X := [a1,--- ,ay]" € RN*= of N feature vectors, self-attention
+transforms X into the output sequence H in the following two steps:
+
+Step 1. The input sequence X is projected into the query matrix Q, the key matrix K, and the value
+matrix V via three linear transformations
+
+Q=XW);K =XWi;V=XWy,
+where Wo, Wx € RPXP=, and Wy © R?»*= are the weight matrices. We denote Q :=
+[n. : san)! JK := [ki,--:,kn]!, and V := [v1,--- , vy], where the vectors qi, ki, v; for
+i , N are the query, key, and value vectors, respectively.
+
+Step 2. The output sequence H := [h1,--- , hy] ' is then computed as follows
+H= softmax(QK™/VD)V = AV, (1)
+where the softmax function is applied to each row of the matrix QK'/ VD. The matrix A :=
+softmax( YE) € RY*N and its component a;; for i, 7 = 1,--- , N are called the attention matrix
+and attention scores, respectively. For each query vector q; for i = 1,--- , N, an equivalent form of
+Eqn. (1) to compute the output vector h,; is given by
+N
+hi = > softmax(q/ k;/VD) V;. (2)
+j=l
+
+The self-attention computed by Eqn. (1) and (2) is called the scaled dot-product or softmax attention.
+In our paper, we call a transformer that uses this attention the softmax transformer. The structure
+that the attention matrix A learns from training determines the ability of the self-attention to capture
+contextual representation for each token. Additionally, a residual connection can be added to the
+
+output of the self-attention layer, hy = x; + a softmax(q, k;/VD) V;.
+
+Multi-head Attention (MHA). In MHA, multiple heads are concatenated to compute the final output.
+This MHA mechanism allows transformers to capture more diverse attention patterns and increase the
+capacity of the model. Let H be the number of heads and W"" = [W3,..., WH] € RPP»
+be the projection matrix for the output where W},,..., WH € R?»*?», The MHA is defined as
+
+H
+MultiHead({H}/_,) = Concat(H!,...,H” ywmtT = > H°We! =) ASVSWe!. 3)
+s=1
+Despite their remarkable success, most attention layers are developed based on heuristic approaches,
+and a coherent principled framework for synthesizing attention layers has remained elusive.
+
+1.2. CONTRIBUTION
+
+We derive the self-attention as the support vector expansion of a given support vector regression
+(SVR) problem. The primal representation of the regression function has the form of a neural network
+layer. Thus, we establish a primal-dual connection between an attention layer in transformers and
+a neural network layer in deep neural networks. Our framework suggests a principled approach
+to developing an attention mechanism: Starting from a neural network layer and a support vector
+regression problem, we derive the dual as a support vector expansion to attain the corresponding
+attention layer. We then employ this principled approach to invent two novel classes of attentions:
+the Batch Normalized Attention (Attention-BN) derived from the batch normalization layer in deep
+neural networks and the Attention with Scaled Heads (Attention-SH) resulting from solving the
+support vector regression model with less amount of training data. Our contribution is three-fold.
+
+1. We derive self-attention as a support vector expansion that solves a SVR problem, thus
+providing a principled primal-dual framework to study and develop self-attentions.
+
+2. We re-derive popular attentions, such as the linear attention (Katharopoulos et al., 2020),
+the sparse attention (Child et al., 2019), and the multi-head attention (Vaswani et al., 2017),
+from our proposed framework.
+Published as a conference paper at ICLR 2023
+
+3. We develop two new attention mechanism: the Batch Normalized Attention (Attention-BN)
+and the Attention with Scaled Heads (Attention-SH) using our proposed framework.
+
+We empirically demonstrate that 1) the Attention-BN significantly outperforms the baseline softmax
+and linear attention and 2) the Attention-SH performs better while being more efficient than the same
+baselines on a variety of practical tasks including image and time-series classification.
+
+2  PRIMAL-DUAL INTERPRETATION OF SELF-ATTENTION
+
+We first provide a primal-dual interpretation of self-attention as a support vector regression problem
+in Section 2.1. Based on that primal-dual framework, we derive popular attention mechanisms as
+the support vector expansion in Section 2.2. Finally, we introduce two new attention mechanisms in
+Section 2.3, the Attention-BN and Attention-SH.
+
+2.1 ATTENTION AS A SUPPORT VECTOR REGRESSION MODEL
+
+In this section, we derive self-attention from a support vector regression problem. Suppose we are
+given a training data {(k1,y1),...,(kn,yn)} C K x Y, where K = R? and Y = R?». Here,
+ky,..., ky are attention keys in self- attention, and y,..., yw are the training targets. We consider
+the function f, taking the form
+
+O(a)
+= = W—— +b 4
+y= f(x) h(w) > , (4)
+where « € K = R?, B(x) = [¢1(2),...,¢p,(x)] € RP*, W = [wi,...,wp,]' € RP**,
+b € R®», and h(z) is a vector-scalar function. We fit the function f to the training data
+{(ki,y1),---, (kw, yn)} with an Ly regularization on W, i.e., a ridge regression, by solving
+the following convex optimization problem:
+1 N Dz 1a N Dy
+aro 2 é _ 2
+minimize 5||W||? + “EE (€:(@) +€(@) = 5 Do llewal? +O (6) + (0)
+€5,€),9=1,...,.N j=ld=1 d=1 j=ld=1
+yj(d) — (kj)/h(kj) — Bd) < + &(d)
+subject to w] &( ane (kj) + b(d) — yj(d)< e+ (d) , j=l,...,N, d=1,...,D,.
+
+&,(d),&)(d) > 0
+
+(5)
+The Eqn. 5 implies that there exists a function f that can approximates all pairs (kj, y;) with €
+precision. The additional slack variables €;, €; relax this assumption and allows some of the training
+set data points to have the training error greater than € just as in the soft-margin SVM (Cortes &
+Vapnik, 1995; Schélkopf et al., 2002). C > 0 is a constant determining the trade between the
+
+2 ive., the flatness of f, and the amount up to which deviations
+
+larger than € are tolerated.
+
+In order to derive the self-attention from the support vector regression defined by the optimization
+problem 5, the key idea to construct the Lagrangian from Eqn. 5 and find the representation of the
+
+wa, d=1,..., , Dy, in terms of the dual variables. We define the Lagrangian function as follows:
+-1y5 jwal? +032 35 (€:(@) + &)(@)) - yy (nj(d)g;(4) + 5(E)(4))
+2 j=ld=1 j=ld=1
+
+N
+j=l
+N
+
+a,;(d) (< + &)(d) — yj(d) + wh FE j + v(a)) (6)
+
+S
+
+> (0) (+810 +90 - wipe, HO)
+
+=1
+
+ws
+a
+IL
+
+where 7;, 7);, @; and G@; are Lagrange multipliers. These dual variables have to satisfy positivity
+constraints, i.e., 7;(d),77;(d), a;(d), &;(d) > 0, Vj =1,..., N, Vd =1,..., Dy. It follows from
+the saddle point condition that the partial derivatives of the Lagrangian function L with respect to
+
+the primal variables (wa, b(d), {€;(d), E(D}1), d=1,..., Dy, have to vanish for optimality,
+Published as a conference paper at ICLR 2023
+
+namely, we have:
+
+Ow(ay£ x &;(d) — aj(d)) =0 Y(aj(d) — &;(d)) = 0, (7)
+j=l j=l
+N N
+_ x(q) oki) — _ (kj)
+Dwi l = wa lala) 4,() FGgy = OF A= 2 las(a (NG)? ®
+ea = C — aj(d) — 1j(4) = 0, Ag, (ql = C — &j(d) — 7j(d) = 0. (9)
+Let v; [OG pees an me JIT, j =1,...,.N, and substitute Eqn. 8 into Eqn. 4, we
+obtain the following support vector expansion of the linear basis function f:
+t
+N ~ N ~
+axj(1) ~ Gj (1) B(a)" O(k;) oj (Dy) ~ &j(Dy) B(a)' O(k;)
+x yeeey + b,
+Fe) ene) ie) A) nz)
+N T 7
+= > P(x) O(k)) +b. (10)
+j=l
+
+Remark 1 Notice that from Eqn. 9 and the conditions nj(d),%j(d), aj (d), @j(d) 2 0, we can
+prove that a;(d),&;(d) € [0,C]. Furthermore, we can show that a;(d) * G;(d) = 0 (Smola &
+
+)
+Schélkopf, 2004; Schélkopf et al, 2002). As a result, v;(d) © |— 55> wey a =1,...,Dy.
+:
+
+Deriving Softmax Attention. Choosing the appropriate h(a) and ®(a) allows us to derive the popu-
+lar softmax attention given in Eqn. | and 2. In particular, if we choose h(a) := yy (ax) ®(k;),
+Eqn. 10 becomes
+
+N N T
+®(x)' O(k; {_, &(a) | ®(k;)v
+fle) =o RO) Oe), 4 y= Ea PO) A) | (11)
+ja Log P(w)7 Oly) Lj O(w)? (kyr)
+We then select ®(x) = (a)? “ seey a, a... 1%, ae :) where 1, = er) and
+al? = (1/WD)" --(eo/WD)"? np at <1 <b. (12)
+ny!...np!
+Since oo oo
+ny nD ny np
+exp (ay) wy? >» le — )(4 ~“ :): (13)
+i SF m4-Tap=t JVnil...np! V/n!...np!
+
+then Eqn. 27 becomes
+
+f(x) S exp («| ky/VD) +b 5 sortmax (2"k /vD) vjtb. (14)
+j i :
+j= 1 Dye 1 exp ( (@™ky/VD)” j=l
+Let 2 = qi, b = 0 and relax the boundness constraint of v; in Remark 1. Eqn. 30 becomes Eqn. 2 of
+the softmax attention (Vaswani et al., 2017). We summarize our results in the following theorem.
+
+Theorem 1 (Softmax Attention as a Support Vector Expansion) Given the function f defined in
+Eqn. 4 with h(a) := yy (ax)? (k,;) and the support vector regression problem defined in Eqn. 5,
+
+we set b = 0, choose ®(a) as in Eqn. 28, and relax the boundness constraint of the variables vj; =
+
+pas) au) o5(Du)6g(Do) 7
+Ce C7)
+Then, the support vector expansion of f derived from Eqn. 5 has the form of a softmax attention
+
+f(x) = S softmax (2" k;/VD) V;- (15)
+j=l
+Remark 2 Since b is set to 0, the centering constraint of a; and Gj in Eqn. 7 can be ignored.
+
+where a; and G; are dual variables of Eqn. 5, 7 =1,...,N.
+
+Remark 3 Theorem | and its derivation can be easily extended to capture the full form of the softmax
+attention with the residual connection, the query matrix projection W g, the key matrix projection
+W x, and the value matrix projection Wy. We include this result in Appendix F.
+Published as a conference paper at ICLR 2023
+
+Remark 4 The primal representation of the function f as in Eqn. 4 has the form of a neural network
+layer where W is the weight, b is the bias term, ®(a) is the input, and h(a) is the normalization
+term. Thus, an attention layer and a neural network layer are primal-dual of each other.
+
+A principled approach to developing an attention mechanism. The observation in Remark 4
+suggests a principled way to construct an attention layer: Starting from a neural network layer and
+a support vector regression problem, we derive the dual as a support vector expansion to attain
+the corresponding attention layer. Using this approach, we derive popular attention mechanisms in
+Section 2.2 and propose our new attention mechanisms in Section 2.3.
+
+2.2 DERIVING POPULAR ATTENTION MECHANISMS AS THE SUPPORT VECTOR EXPANSION
+
+In this section, we derive popular attentions such as the linear attention (Katharopoulos et al., 2020),
+the sparse attention (Child et al., 2019), and the multi-head attention (Vaswani et al., 2017).
+
+2.2.1 LINEAR ATTENTION
+
+The Eqn. 27, which is obtained when choosing h(a) := yy (ax)? &(k;), already matches the
+formula of the linear attention. Here, we can let b = 0 as above and select the function ® that results
+in a positive similarity function, e.g. @(a) = elu(a) + 1, as in (Katharopoulos et al., 2020).
+
+2.2.2 SPARSE ATTENTION
+
+The sparse attention (Child et al., 2019) can be derived by fitting the function f in Eqn. 4 using a differ-
+ent subset {(Km,(1);Ymz(1))>+++> (Kina(M); Ym.(M))} Of training data {(ki,y1),.-., (Kw, yn) }
+for each input data x, where Mz = {ma(1),..., mez(M)} Cc {1,...,N}. The support vector
+expansion of f is then given by
+
+f(a) = Dts Per Sy, +0 (16)
+
+1 if.
+if7 € Me . Note that the subsets M, are different for
+
+here 1 y= =
+
+where Lu, (J) G € Me) fr otherwise
+
+different x. When letting « = q; where g;,i = 1,..., N, are the query vectors and choosing ®, h, b
+as in Section 2.1, we can obtain the sparse attention in (Child et al., 2019) where the binary matrix
+M= (lag, (3)); jal becomes the sparse masking matrix.
+
+2.2.3. MULTI-HEAD ATTENTION (MHA)
+
+The MHA can be derived by solving multiple support vector regression problems
+and then linearly combining their outputs. In ppoticular, given H training datasets
+{(Kt,yt),---; (ky, yw)}s-. (ke yf)... (RR yt)} CK x DY, where K = R? and Y =
+
+R?». We define the function f applied on the input vector x = [x!,...,2”] as follows
+
+ce Ss
+y = f(x): = Wow" = = Swart =)oWws (wie) + 0’) , (17)
+s=1 s=1
+
+)
+where each function wa (a) = we 2 + 6° is fitted to the training dataset
+
+{(ki, yi), ---» (kN, yiv)}. Following the same derivation and choosing {°, h°, b° V1, as in Sec-
+tion 2.1, we can rewrite f(a) in terms of the support vector expansions of the individual functions
+f*(a*), which are the individual softmax attentions
+N @8/(m8\T 68( BS H N
+‘ O(a?) OK) ie ps ; sT ps
+= dW > Ta") vj +b dW » softmax (« kj/VD) vs
+
+j=l
+
+(18)
+Comparing Eqn. 18 and Eqn. 3, we see that Eqn. 18 computes the MHA when choosing 2° = q;
+
+where q?, i = 1,..., N, are the query vectors at the s"" head.
+
+2.3. DERIVING NEW ATTENTION MECHANISMS: BATCH NORMALIZED ATTENTION AND
+MULTIRESOLUTION HEAD ATTENTION
+
+In this section, we employ our primal-dual framework to develop new attention mechanisms. In par-
+ticular, we derive: 1) the Batch Normalized Attention from employing the batch normalization (loffe
+& Szegedy, 2015); and 2) the Attention with Scaled Heads from using different amounts of training
+data. By 1) and 2), we demonstrate that new attentions can be invented by modifying the primal
+neural network layer and the support vector regression problem in our framework, respectively.
+Published as a conference paper at ICLR 2023
+
+2.3.1 BATCH NORMALIZED ATTENTION
+
+We incorporate the batch normalization into the primal form of the function f in Eqn. 4. Given a
+training data {(ki, yi),..-, (kw, yn)} C K x Y, where K = R? and Y = R”» as in Section 2.1,
+the resultant f is defined as follows
+
+O(a — pw) Os")
+
+‘(a) := W + b, 19
+1) Waa pos) + 9)
+where
+D T N
+w= Sok, x | — | o8 = +S (h(a) — n(@))?. 20)
+No Voz+e 07, +e No
+Here, d = 1,..., D, and the mean subtraction and division by the standard deviation is performed
+
+element-wise along the feature dimension of a. Following the same derivation as in Section 2.1, we
+derive the following support vector expansion of f
+
+N
+®((@ — p) Os") 'O((k; — w) Os“)
+f(x J vj; +b. (21)
+=) ie) os) y
+- . T
+Here, vj = Ass penny fap een , where a; and G; are the dual variables, j =
+
+1,...,.N. Same as in Section 2.1, in Eqn. 21, we choose ® as in Eqn. 28, h(a) := >» (x)? &(k;),
+and b = 0 to obtain the the Batch Normalized Attention, which is defined as follows.
+
+Definition 1 (Batch Normalized Attention) Given a set of the key and value vectors {k;,v;} Ny,
+
+for each query vector qi, i = 1,...,.N, the Batch Normalized Attention (Attention-BN) computes the
+corresponding output vector h; of the query q; by the following attention formula:
+hi =~ softmax (a —p)@s-?)' ((kj — p) os-)/vD) vj, (22)
+j=l
+where
+D T N
+p= Sok | . . | a8 =~ (kid) — nd). 23)
+Noa Vopte VoIp tre No
+
+The Effect of Normalization. Expanding the dot product in the Attention-BN (see Appendix E),
+Eqn. 22 becomes
+
+N D LyN
+
+i(d)k;(d) — 3 oye by (A) ky (d
+
+hi =~ softmax Ee ) 5 ( ) NW Dojiat ir ( ) 5 ( ) v;. (24)
+j=l d=1 VD(o4 + €)
+
+Eqn. 24 implies that in the Attention-BN, the similarity between the query q; and the key kj is
+
+adjusted by the similarity between the key k, and all the keys kj, j’ = 1,..., N. In particular, if the
+key k; is too similar to other keys, the query q; will attend to it less and vice versa.
+
+2.3.2 ATTENTION WITH SCALED HEADS
+
+The Attention with Scaled Heads, named Attention-SH, is derived based on the derivation of
+the MHA in Section 2.2.3. The key idea underlying the Attention-SH is to train multiple sup-
+port vector regression problems using different amounts of training data. In particular, the
+Attention-SH follows Eqn. 17 in Section 2.2.3 and defines the same regression function f as the
+MHA. However, the Attention-SH fits the function f*, s = 1,...,H, in Eqn. 17 with training
+sets {(ki, yt),.-.. (kN, YN} {hE yi!),.... (kN, YN, + CK x Y of different sizes
+Ni,...,Na, where K = R? and Y = R”*. The resultant support vector expansion yields the
+formula of the Attention-SH as in the following definition.
+
+Definition 2 (Attention with Scaled Heads) Given H sets of the key and value vectors
+
+{ki ,ut ps, ey {kil ull pM, for each set of H query vectors q},...,qH#, i = 1,...,N, the
+Attention with Scaled Heads (Attention-SH) computes the corresponding output vector h; of the
+queries qi, ..., qi" by the following attention formula:
+hi = > Wo > softmax (ai"k;/vD) v5]. (25)
+s=1 j=l
+Published as a conference paper at ICLR 2023
+
+Table 1: Test Accuracy (%) of the Attention-BN/SH/BN+SH vs. the baseline softmax attention on a subset
+of the UEA Time Series Classification Archive benchmark (Bagnall et al., 2018). Our proposed attentions
+significantly outperform the baseline. We also include the reported results from (Zerveas et al., 2021) and (Wu
+
+et al., 2022) (in parentheses) in addition to our reproduced results.
+Dataset/Model Baseline Softmax Attention-BN  Attention-SH — Attention-BN+SH
+ETHANOLCONCENTRATION | 32.08 + 1.24 (33.70) | 33.3340.44 33.59+0.58 34.35 + 0.53
+FACEDETECTION 68.70 + 0.61 (68.10) | 68.62+0.26 68.83 + 0.16 68.67 + 0.13
+HANDWRITING 32.08 + 0.88 (30.50) | 33.17+0.20 33.29 + 0.42 33.45 + 0.61
+HEARTBEAT 75.77 + 1.01 (77.60) | 76.10+0.98 76.25 + 1.02 76.26 + 1.07
+JAPANESEVOWELS 99.46 + 0.27 (99.40) | 99.55+0.31 99.46 + 0.27 99.55 + 0.31
+PEMS-SF 82.66 + 0.51 (82.10) | 84.77+0.33 83.04 + 0.86 83.81 + 0.62
+SELFREGULATIONSCP1 91.46 + 0.35 (92.50) | 91.58+0.39 91.70 + 0.39 92.04 + 0.36
+SELFREGULATIONSCP2 54.72 + 0.74 (53.90) | 56.11 40.71 55.93 + 0.85 57.04 + 0.82
+SPOKENARABICDIGITS 99.33 + 0.02 (99.30) | 99.23+0.09 99.34 + 0.11 99.42 + 0.28
+UWAVEGESTURELIBRARY 84.45 + 0.72 (85.60) | 8646+0.81 86.77 + 0.78 87.60 + 0.67
+AVERAGE ACCURACY 72.07 + 0.47(72.27) 72.89 £0.09 72.82 £0.12 73.22 + 0.33
+
+Remark 5 For a given input sequence X := [a1,--- ,@n|' € RN*?= of N feature vectors in
+
+self-attention, in order to generate the sets of {ke, v: th
+
+% , at the scale s‘", we can downsample
+the input X before projecting into the key matrix K and the value matrix V. There are multiples
+approaches to downsampling X, such as using the average-pooling, max-pooling, 1-D convolution,
+
+or K-means clustering. In this paper, we employ the average-pooling to downsample X.
+
+Linear Attention with Batch Normalization and Scaled Heads. The Attention-BN/SH can be
+extended to use with the linear attention. In particular, in the Linear Attention-BN/SH, we replace the
+softmax kernel in Eqn. 22 and Eqn. 25 by the linear kernel, respectively.
+
+3 EXPERIMENTAL RESULTS
+
+In this section, we empirically demonstrate the advantages of our Attention-BN, Attention-SH,
+and their combination (Attention-BN+SH) over the baseline softmax attention on the UEA time-
+series classification benchmark (Bagnall et al., 2018), the Long Range Arena benchmark (Tay et al.,
+2021), and the image classification task on the Imagenet dataset (Deng et al., 2009; Russakovsky
+et al., 2015). We aim to show that: (i) Attention-BN significantly outperforms the softmax baseline
+across tasks; (ii) Attention-SH achieves better or comparable accuracy while saving computation
+and memory compared to the baseline; (iii) Attention-BN+SH, which combines both Attention-BN
+and Attention-SH, results in the best model performance in term of accuracy and efficiency; (iv)
+all our proposed models help reduce the redundancy in multi-head attention and benefit learning
+of the long-term dependency in long input sequences; (v) Attention-BN and Attention-SH can be
+applied on other attention mechanisms beyond the softmax attention. When combined with the linear
+attention (Katharopoulos et al., 2020), the resultant Linear Attention-BN and Linear Attention-SH
+yield similar advantages mentioned in (i), (ii), (iii) and (iv) over the baseline linear attention.
+
+In our experiments, we compare the proposed models with the baseline softmax and linear attentions
+of the same configuration. For the Attention-BN and Attention-BN+SH, we observe that recentering
+queries and keys alone is sufficient for improving the model performance. In addition, weighting ps
+with a constant 6, as in Eqn. 26 in the Appendix, enables the Attention-BN/BN+SH to adjust the
+effect of normalization to the attention score and help increase the accuracy. Our results are averaged
+over 5 runs. Details on datasets, models, and training are provided in Appendix A.
+
+UEA Time Series Classification. Table 1 compares the accuracy of the Attention-BN and Attention-
+SH with the baseline softmax attention on 10 tasks in the UEA Time Series Classification bench-
+mark (Bagnall et al., 2018). Both Attention-BN and Attention-SH significantly outperform the
+softmax baseline on most tasks and on average among all tasks. When combining two models, the
+resulting Attention-BN+SH yields the best accuracy with more than 1% overall improvement over
+the softmax baseline. Notably, the Attention-SH and Attention-BN+SH are much more efficient than
+the baseline since they need much fewer keys and values in computing the attention output. The
+efficiency advantage of the Attention-SH/BN+SH is discussed and analyzed in detail in Section 4.
+
+Long Range Arena (LRA) benchmark. In this experiment, we verify the advantage of our methods
+over the softmax baseline on tasks that involve very long sequences (e.g., the sequence length can
+be up to 4K) in the LRA benchmark (Tay et al., 2021). Those tasks require the model to capture
+long-range dependency in the input sequence. The summarized results in Table 2 indicate significant
+improvements of Attention-BN/SH/BN+SH over the baseline softmax attention. Same as in the UEA
+Published as a conference paper at ICLR 2023
+
+Table 2: Test Accuracy (%) of the Attention-BN/SH/BN+SH vs. the baseline softmax attention on the LRA
+benchmark (Tay et al., 2021). Our models significantly outperform the softmax baseline.
+
+Dataset/Model | Baseline Softmax | Attention-BN  Attention-SH — Attention-BN+SH
+LisTOPs 36.76 + 0.42 37.32 0.06 37.08 + 0.48 37.33 + 0.53
+TEXT 64.90 + 0.07 65.07 + 0.08 65.19 + 0.19 65.03 + 0.35
+RETRIEVAL 79.68 + 0.52 81.05+0.08 80.74 + 0.32 81.20 + 0.11
+IMAGE 39.23 + 1.35 39.75 £1.21 38.87 + 1.24 39.18 + 1.27
+PATHFINDER 72.72 + 0.75 73.24 + 0.67 74.00 + 0.29 73.98 + 0.55
+
+AVERAGE ACCURACY | 58.66+0.26 | 59.28+0.25 59.18 + 0.22 59.35 + 0.29
+
+Table 3: Top-1 and top-5 accuracy (%) of the Attention-BN/SH/SH+BN Deit vs. the baseline softmax attention
+Deit on the ImageNet benchmark. The Attention-BN Deit outperforms the baseline in terms of accuracy. The
+Attention-SH/BN+SH Deit achieve comparable accuracy with the baseline while being more efficient.
+
+Metric/Model | Baseline Softmax Deit | Attention-BN Deit Attention-SH Deit —Attention-BN+SH Deit
+
+Top-1 Acc (%) 72.23 + 0.23 72.79 + 0.21 72.08 + 0.23 72.25 + 0.22
+Top-5 Acc (%) 91.13 + 0.15 91.43 + 0.12 91.05 + 0.14 91.14 + 0.12
+A B c D
+Training Testing Training Testing
+
+0.90 0.80
+
+Memory ratio
+
+°512 loz 2088 4096 6192 "9512 1028 2088 40968192
+Sequence Length Sequence Length ‘Sequence Length ‘Sequence Length
+
+Ctohes leeratneres| rcmaosy  aeclamache dim =64  —dim= 128 —dim=258 —dim =512
+
+on:
+
+Figure 1: (Left) FLOPS ratios and (Right) memory usage ratios between the Attention-BN+SH and the
+softmax baseline trained on retrieval task for different model dimensions and sequence lengths. The reduction in
+computation and memory when using our models improves with sequence length. When scaling up the model,
+our methods remain significantly more beneficial than the baseline.
+
+Time Series experiment, on this LRA benchmark, Attention-BN and Attention-SH both outperform
+the softmax attention on most five tasks. Moreover, Attention-BN+SH, which combines these two
+attention mechanisms, results in the most accurate models on average across tasks. Specifically, for
+the retrieval task, the most challenging task with the largest sequence length in the LRA benchmark,
+Attention-BN+SH achieve a remarkable improvement of more than 1.5% over the baseline.
+
+Image Classification on Imagenet. We corroborate the advantage of our proposed attention over
+the baseline softmax attention when scaled up for the large-scale ImageNet image classification
+task. We summarize the results in Table 3. The Deit model (Touvron et al., 2021) equiped with the
+Attention-BN yields better performance than the softmax baseline. Meanwhile, Attention-SH/BN+SH
+Deit perform on par with the baseline while being more efficient. These results, together with other
+results above justify the benefits of our proposed methods across various tasks and data modalities,
+proving the effectiveness of our primal-dual approach to develop new attentions.
+
+4 EMPIRICAL ANALYSIS
+
+Efficiency Analysis. The Attention-BN+SH not only improves the accuracy of the model remarkably
+but also help reduce the computational and memory cost significantly. Fig.1 presents the efficiency
+benefits of our Attention-BN+SH trained on the retrieval task when the model dimension D and
+sequence lengths N grow. The efficiency advantage of our model increase as N increase. In addition,
+the scaled-up models (with large D) remains significantly more efficient than the baseline. When
+the model dimension is 64 and sequence length is 4096, which is the standard configuration of the
+task, the model’s FLOPS, in both training and inference, reduce almost 25%, whereas the reductions
+for memory usage in training and testing are 31.9% and 47.3%, respectively. Notably, this efficient
+model also outperforms the baseline with more than 1.5% improvement in accuracy. These results
+prove the benefits of applying the Attention-BN+SH for long-sequence tasks and large-scale models.
+
+New Attentions Helps Reduce Head Redundancy. We compute the average £2 distances between
+heads to analyze the attention diversity. Given our trained models for the retrieval task, the layer-
+average mean and standard deviation of distances between heads are reported in Table 4. All our
+introduced attentions attain greater Ly distances compared to the baseline, reducing the risk of
+learning redundant heads. In particular, Attention-SH has the highest head difference, indicating the
+model’s attention patterns are most spread out between heads.
+Published as a conference paper at ICLR 2023
+
+Table 4: Layer-average mean and standard deviation of £2 distances between heads of Attention-BN/SH/BN+SH
+versus dot-product attention transformer trained on the retrieval task. Our attentions attain greater £2 distances
+between heads than the baseline, suggesting that they capture more diverse attention patterns.
+
+MetricModel | Baseline Softmax | Attention-BN  Attention-SH — Attention-BN+SH
+
+Mean 2.01 2.45 3.81 3.19
+Std 0.39 0.66 0.75 1.01
+
+Combining Attention-BN and Attention-SH with Other Attentions. Our methods can be extended
+to combine with other attention mechanisms. We study the Linear Attention-BN/SH/BN+SH, that
+combine the Attention-BN/SH/BN+SH with the linear attention (Katharopoulos et al., 2020) as
+explained at the end of Section 2.3. We summarize our results in Table 5 in Appendix B.1.
+
+5 RELATED WORK
+
+Interpretation of Attention Mechanism. Recent works have focused on understanding the attention
+mechanism in transformers from different perspectives. (Tsai et al., 2019) considers attention as
+a weighted moving average over the inputs via a smoothing kernel. (Nguyen et al., 2022) draws
+a connection between self-attention and nonparametric kernel regression. With this understand-
+ing, the work explores better regression estimators, e.g. the generalized Fourier nonparametric
+regression estimator, to improve transformers. In addition, (Cao, 2021) then shows that the linear
+transformer (Katharopoulos et al., 2020) corresponds to a Petrov-Galerkin projection (Reddy, 2004)
+and proves that the softmax normalization in the softmax attention is sufficient but not necessary.
+Other works that employ ordinary/partial differential equations to provide an interpretation for atten-
+tion include (Lu et al., 2019; Sander et al., 2022). From a probabilistic perspective, (Tang & Matteson,
+2021; Gabbur et al., 2021; Zhang & Feng, 2021) propose Gaussian mixture model frameworks to
+study the self-attention in transformers. Using graph-structured learning and message passing in
+graphical models is another attempt at understanding the attention mechanism Wang et al. (2018);
+Shaw et al. (2018); Kreuzer et al. (2021). Optimization perspectives of attention mechanisms are
+recently explored. (Sander et al., 2022) connects transformers with an optimization process across
+iterations by specifically constructing the core energy function. (Sahiner et al., 2022) derive finite-
+dimensional convex equivalence of attentions that can be solved for global optimality. Different from
+these approaches, our primal-dual framework focuses on deriving attention as the dual expansion of a
+primal neural network layer via solving a support vector regression problem. This framework allows
+us to not only explain many different types of attention mechanisms but also create new ones.
+
+Efficient Transformers. Recently, efficient transformers have been studied (Roy et al., 2021). Among
+them are sparse transformers which incorporate sparse structures into the attention matrix (Parmar
+et al., 2018; Liu et al., 2018; Qiu et al., 2019; Child et al., 2019; Beltagy et al., 2020). Another class
+of efficient transformers are models that aim to have better coverage by integrating different access
+patterns (Child et al., 2019; Ho et al., 2019), which can also be learned from the data (Kitaev et al.,
+2020; Roy et al., 2021; Tay et al., 2020). An emerging body of work is proposed to distill and prune
+the model, including (Sanh et al., 2019; Sun et al., 2019; Voita et al., 2019; Sajjad et al., 2020). In
+other works, a side memory module is utilized in order to access multiple tokens simultaneously
+(Lee et al., 2019; Sukhbaatar et al., 2019; Asai & Choi, 2020; Beltagy et al., 2020). Low-rank and
+kernelization methods have been proposed to improve the efficiency of self-attention calculation (Tsai
+et al., 2019; Wang et al., 2020; Katharopoulos et al., 2020; Choromanski et al., 2021; Shen et al.,
+2021; Peng et al., 2021). Our Attention-SH/BN+SH is orthogonal to these methods.
+
+6 CONCLUDING REMARKS
+
+In this paper, we derive self-attention as a support vector expansion that solves a support vector
+regression (SVR) problem and provide a principled primal-dual framework to analyze and synthesize
+attention mechanisms. We then use our framework to invent two new attention mechanisms, the
+Batch Normalized Attention (Attention-BN) and the Attention with Scaled Heads (Attention-SH),
+that improve the accuracy and the efficiency of the baseline softmax attention. In our work, we
+approximate and learn the dual variables a; and Gj using the value vector vj, 7 = 1,...,N in
+self-attention. It is natural to include more inductive biases and structures of those dual variables from
+solving the dual optimization problem of SVR into the value vectors v;. Furthermore, extending our
+framework to explain the attention modules that compute the attention using neural network layers or
+convolutional neural network layers applying on the input feature, such as the Convolutional Block
+Attention Module (Woo et al., 2018), is an interesting research direction. We leave these exciting
+research ideas as future work.
+Published as a conference paper at ICLR 2023
+
+ACKNOWLEDGEMENTS
+
+This material is based on research sponsored by the NSF under Grant# 2030859 to the Computing
+Research Association for the CIFellows Project (CIF2020-UCLA-38). SJO acknowledges support
+from the ONR N00014-20-1-2093 and NO0014-20-1-2787 and the NSF DMS 2208272 and 1952339.
+RGB acknowledges support from the NSF grants CCF-1911094, IIS-1838177, and IIS-1730574;
+ONR grants N00014-18-12571, NO0014-20-1-2534, and MURI N00014-20-1-2787; AFOSR grant
+FA9550-22-1-0060; and a Vannevar Bush Faculty Fellowship, ONR grant NO0014-18-1-2047. ALB
+acknowledges support from the NSF grants DMS-2152717 and DMS-1952339. NH acknowledges
+support from the NSF IFML 2019844 and the NSF AI Institute for Foundations of Machine Learning.
+
+REFERENCES
+
+Rami Al-Rfou, Dokook Choe, Noah Constant, Mandy Guo, and Llion Jones. Character-level
+language modeling with deeper self-attention. In Proceedings of the AAAI Conference on Artificial
+Intelligence, volume 33, pp. 3159-3166, 2019.
+
+Anurag Arnab, Mostafa Dehghani, Georg Heigold, Chen Sun, Mario Luci¢, and Cordelia Schmid.
+Vivit: A video vision transformer. In 202] IEEE/CVF International Conference on Computer
+Vision (ICCV), pp. 6816-6826, 2021. doi: 10.1109/ICCV48922.2021.00676.
+
+Akari Asai and Eunsol Choi. Challenges in information seeking qa: Unanswerable questions and
+paragraph retrieval. arXiv preprint arXiv:2010.11915, 2020.
+
+Alexei Baevski and Michael Auli. Adaptive input representations for neural language modeling. In
+International Conference on Learning Representations, 2019. URL https://openreview.net/forum?
+id=ByxZX20qFQ.
+
+Anthony Bagnall, Hoang Anh Dau, Jason Lines, Michael Flynn, James Large, Aaron Bostrom, Paul
+Southam, and Eamonn Keogh. The uea multivariate time series classification archive, 2018. arXiv
+preprint arXiv: 1811.00075, 2018.
+
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. Neural machine translation by jointly
+learning to align and translate. arXiv preprint arXiv: 1409.0473, 2014.
+
+Iz Beltagy, Matthew E Peters, and Arman Cohan. Longformer: The long-document transformer.
+arXiv preprint arXiv:2004.05150, 2020.
+
+Tom B Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal,
+Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are
+few-shot learners. arXiv preprint arXiv:2005.14165, 2020.
+
+Shuhao Cao. Choose a transformer: Fourier or galerkin. Advances in Neural Information Processing
+Systems, 34, 2021.
+
+Lili Chen, Kevin Lu, Aravind Rajeswaran, Kimin Lee, Aditya Grover, Misha Laskin, Pieter Abbeel,
+Aravind Srinivas, and Igor Mordatch. Decision transformer: Reinforcement learning via sequence
+modeling. Advances in neural information processing systems, 34:15084—15097, 2021.
+
+Rewon Child, Scott Gray, Alec Radford, and Ilya Sutskever. Generating long sequences with sparse
+transformers. arXiv preprint arXiv: 1904. 10509, 2019.
+
+Kyunghyun Cho, Bart van Merriénboer, Caglar Gulcehre, Dzmitry Bahdanau, Fethi Bougares,
+Holger Schwenk, and Yoshua Bengio. Learning phrase representations using RNN encoder—
+decoder for statistical machine translation. In Proceedings of the 2014 Conference on Empirical
+Methods in Natural Language Processing (EMNLP), pp. 1724-1734, Doha, Qatar, October 2014.
+Association for Computational Linguistics. doi: 10.3115/v1/D14-1179. URL https://www.aclweb.
+org/anthology/D 14-1179.
+
+Krzysztof Marcin Choromanski, Valerii Likhosherstov, David Dohan, Xingyou Song, Andreea
+Gane, Tamas Sarlos, Peter Hawkins, Jared Quincy Davis, Afroz Mohiuddin, Lukasz Kaiser,
+David Benjamin Belanger, Lucy J Colwell, and Adrian Weller. Rethinking attention with
+performers. In International Conference on Learning Representations, 2021. URL https:
+//openreview.net/forum?id=Ua6zukOWRH.
+
+10
+Published as a conference paper at ICLR 2023
+
+Kevin Clark, Urvashi Khandelwal, Omer Levy, and Christopher D. Manning. What does BERT look
+at? an analysis of BERT’s attention. In Proceedings of the 2019 ACL Workshop BlackboxNLP:
+Analyzing and Interpreting Neural Networks for NLP, pp. 276-286, Florence, Italy, August
+2019. Association for Computational Linguistics. doi: 10.18653/v1/W19-4828. URL https:
+//www.aclweb.org/anthology/W 19-4828.
+
+Corinna Cortes and Vladimir Vapnik. Support-vector networks. Machine learning, 20(3):273-297,
+1995.
+
+Zihang Dai, Zhilin Yang, Yiming Yang, Jaime Carbonell, Quoc V Le, and Ruslan Salakhutdi-
+nov. Transformer-xl: Attentive language models beyond a fixed-length context. arXiv preprint
+arXiv:1901.02860, 2019.
+
+Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit, and Lukasz Kaiser. Universal
+transformers. arXiv preprint arXiv: 1807.03819, 2018.
+
+Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale
+hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition,
+pp. 248-255. Ieee, 2009.
+
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep
+bidirectional transformers for language understanding. arXiv preprint arXiv:1810.04805, 2018.
+
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas
+Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit,
+and Neil Houlsby. An image is worth 16x16 words: Transformers for image recognition at scale.
+In International Conference on Learning Representations, 2021. URL https://openreview.net/
+forum?id=YicbFdNTTy.
+
+Prasad Gabbur, Manjot Bilkhu, and Javier Movellan. Probabilistic attention for interactive segmenta-
+tion. Advances in Neural Information Processing Systems, 34, 2021.
+
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, Wei Han, Shibo
+Wang, Zhengdong Zhang, Yonghui Wu, et al. Conformer: Convolution-augmented transformer for
+speech recognition. arXiv preprint arXiv:2005.08100, 2020.
+
+Meng-Hao Guo, Jun-Xiong Cai, Zheng-Ning Liu, Tai-Jiang Mu, Ralph R Martin, and Shi-Min Hu.
+Pct: Point cloud transformer. Computational Visual Media, 7(2):187-199, 2021.
+
+Jonathan Ho, Nal Kalchbrenner, Dirk Weissenborn, and Tim Salimans. Axial attention in multidi-
+mensional transformers. arXiv preprint arXiv: 1912.12180, 2019.
+
+Andrew G Howard, Menglong Zhu, Bo Chen, Dmitry Kalenichenko, Weijun Wang, Tobias Weyand,
+Marco Andreetto, and Hartwig Adam. Mobilenets: Efficient convolutional neural networks for
+mobile vision applications. arXiv preprint arXiv: 1704.04861, 2017.
+
+Sergey loffe and Christian Szegedy. Batch normalization: Accelerating deep network training by
+reducing internal covariate shift. In International conference on machine learning, pp. 448-456.
+PMLR, 2015.
+
+Michael Janner, Qiyang Li, and Sergey Levine. Offline reinforcement learning as one big sequence
+modeling problem. Advances in neural information processing systems, 34:1273-1286, 2021.
+
+John Jumper, Richard Evans, Alexander Pritzel, Tim Green, Michael Figurnov, Olaf Ronneberger,
+Kathryn Tunyasuvunakool, Russ Bates, Augustin Zidek, Anna Potapenko, et al. Highly accurate
+protein structure prediction with alphafold. Nature, 596(7873):583-589, 2021.
+
+Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, and Francois Fleuret. Transformers are rnns:
+Fast autoregressive transformers with linear attention. In International Conference on Machine
+Learning, pp. 5156-5165. PMLR, 2020.
+
+Yoon Kim, Carl Denton, Luong Hoang, and Alexander M Rush. Structured attention networks. arXiv
+preprint arXiv: 1702.00887, 2017.
+
+11
+Published as a conference paper at ICLR 2023
+
+Nikita Kitaev, Lukasz Kaiser, and Anselm Levskaya. Reformer: The efficient transformer. arXiv
+preprint arXiv:2001.04451, 2020.
+
+Devin Kreuzer, Dominique Beaini, Will Hamilton, Vincent Létourneau, and Prudencio Tossou.
+Rethinking graph transformers with spectral attention. Advances in Neural Information Processing
+Systems, 34, 2021.
+
+Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple layers of features from tiny images. 2009.
+
+Juho Lee, Yoonho Lee, Jungtaek Kim, Adam Kosiorek, Seungjin Choi, and Yee Whye Teh. Set trans-
+former: A framework for attention-based permutation-invariant neural networks. In International
+Conference on Machine Learning, pp. 3744-3753. PMLR, 2019.
+
+Zhouhan Lin, Minwei Feng, Cicero Nogueira dos Santos, Mo Yu, Bing Xiang, Bowen Zhou, and
+Yoshua Bengio. A structured self-attentive sentence embedding. CoRR, abs/1703.03130, 2017.
+URL http://arxiv.org/abs/1703.03130.
+
+Drew Linsley, Junkyung Kim, Vijay Veerabadran, Charles Windolf, and Thomas Serre. Learn-
+ing long-range spatial dependencies with horizontal gated recurrent units. In S. Bengio,
+H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett (eds.), Advances
+in Neural Information Processing Systems, volume 31. Curran Associates, Inc., 2018. URL
+https://proceedings.neurips.cc/paper/20 1 8/file/ec8956637a99787bd 1 97eacd77acceSe-Paper.pdf.
+
+Peter J Liu, Mohammad Saleh, Etienne Pot, Ben Goodrich, Ryan Sepassi, Lukasz Kaiser, and Noam
+Shazeer. Generating wikipedia by summarizing long sequences. arXiv preprint arXiv: 1801.10198,
+2018.
+
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike
+Lewis, Luke Zettlemoyer, and Veselin Stoyanov. Roberta: A robustly optimized bert pretraining
+approach. arXiv preprint arXiv:1907.11692, 2019.
+
+Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo.
+Swin transformer: Hierarchical vision transformer using shifted windows. In Proceedings of the
+IEEE/CVF International Conference on Computer Vision, pp. 10012-10022, 2021.
+
+Ze Liu, Jia Ning, Yue Cao, Yixuan Wei, Zheng Zhang, Stephen Lin, and Han Hu. Video swin
+transformer. In JEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2022.
+
+Yiping Lu, Zhuohan Li, Di He, Zhiqing Sun, Bin Dong, Tao Qin, Liwei Wang, and Tie-Yan Liu.
+Understanding and improving transformer from a multi-particle dynamic system point of view.
+arXiv preprint arXiv: 1906.02762, 2019.
+
+Andrew L. Maas, Raymond E. Daly, Peter T. Pham, Dan Huang, Andrew Y. Ng, and Christopher
+Potts. Learning word vectors for sentiment analysis. In Proceedings of the 49th Annual Meeting
+of the Association for Computational Linguistics: Human Language Technologies, pp. 142-150,
+Portland, Oregon, USA, June 2011. Association for Computational Linguistics. URL https:
+//www.aclweb.org/anthology/P 11-1015.
+
+Nikita Nangia and Samuel Bowman. ListOps: A diagnostic dataset for latent tree learning. In
+Proceedings of the 2018 Conference of the North American Chapter of the Association for
+Computational Linguistics: Student Research Workshop, pp. 92-99, New Orleans, Louisiana,
+USA, June 2018. Association for Computational Linguistics. doi: 10.18653/v1/N18-4013. URL
+https://www.aclweb.org/anthology/N 18-4013.
+
+Tam Minh Nguyen, Tan Minh Nguyen, Dung DD Le, Duy Khuong Nguyen, Viet-Anh Tran, Richard
+Baraniuk, Nhat Ho, and Stanley Osher. Improving transformers with probabilistic attention keys.
+In International Conference on Machine Learning, pp. 16595-16621. PMLR, 2022.
+
+Ankur Parikh, Oscar Tickstré6m, Dipanjan Das, and Jakob Uszkoreit. A decomposable attention
+model for natural language inference. In Proceedings of the 2016 Conference on Empirical Methods
+in Natural Language Processing, pp. 2249-2255, Austin, Texas, November 2016. Association for
+Computational Linguistics. doi: 10.18653/v1/D16-1244. URL https://www.aclweb.org/anthology/
+D16-1244.
+
+12
+Published as a conference paper at ICLR 2023
+
+Niki Parmar, Ashish Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Noam Shazeer, Alexander Ku, and
+Dustin Tran. Image transformer. In Jennifer Dy and Andreas Krause (eds.), Proceedings of
+the 35th International Conference on Machine Learning, volume 80 of Proceedings of Machine
+Learning Research, pp. 4055-4064. PMLR, 10-15 Jul 2018. URL http://proceedings.mlr.press/
+v80/parmar]8a.html.
+
+Hao Peng, Nikolaos Pappas, Dani Yogatama, Roy Schwartz, Noah Smith, and Lingpeng Kong.
+Random feature attention. In Jnternational Conference on Learning Representations, 2021. URL
+https://openreview.net/forum?id=QtTKTdVrFBB.
+
+Jiezhong Qiu, Hao Ma, Omer Levy, Scott Wen-tau Yih, Sinong Wang, and Jie Tang. Blockwise
+self-attention for long document understanding. arXiv preprint arXiv:1911.02972, 2019.
+
+Dragomir R Radev, Pradeep Muthukrishnan, Vahed Qazvinian, and Amjad Abu-Jbara. The acl
+anthology network corpus. Language Resources and Evaluation, 47(4):919-944, 2013.
+
+Alec Radford, Karthik Narasimhan, Tim Salimans, and Ilya Sutskever. Improving language under-
+standing by generative pre-training. OpenAI report, 2018.
+
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language
+models are unsupervised multitask learners. OpenAI blog, 1(8):9, 2019.
+
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal,
+Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual
+
+models from natural language supervision. In International Conference on Machine Learning, pp.
+8748-8763. PMLR, 2021.
+
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena,
+Yanqi Zhou, Wei Li, and Peter J. Liu. Exploring the limits of transfer learning with a unified
+text-to-text transformer. Journal of Machine Learning Research, 21(140):1-67, 2020. URL
+http://jmlr.org/papers/v2 1/20-074.html.
+
+Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray, Chelsea Voss, Alec Radford, Mark Chen,
+and Ilya Sutskever. Zero-shot text-to-image generation. In International Conference on Machine
+Learning, pp. 8821-8831. PMLR, 2021.
+
+JN Reddy. An introduction to the finite element method, volume 1221. McGraw-Hill New York,
+2004.
+
+Alexander Rives, Joshua Meier, Tom Sercu, Siddharth Goyal, Zeming Lin, Jason Liu, Demi Guo,
+Myle Ott, C Lawrence Zitnick, Jerry Ma, et al. Biological structure and function emerge from
+scaling unsupervised learning to 250 million protein sequences. Proceedings of the National
+Academy of Sciences, 118(15), 2021.
+
+Aurko Roy, Mohammad Saffar, Ashish Vaswani, and David Grangier. Efficient content-based sparse
+attention with routing transformers. Transactions of the Association for Computational Linguistics,
+9:53-68, 2021. URL https://www.aclweb.org/anthology/202 1.tacl- 1.4.
+
+Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang,
+Andrej Karpathy, Aditya Khosla, Michael Bernstein, et al. Imagenet large scale visual recognition
+challenge. International Journal of Computer Vision, 115(3):211-252, 2015.
+
+Arda Sahiner, Tolga Ergen, Batu Ozturkler, John Pauly, Morteza Mardani, and Mert Pilanci. Un-
+raveling attention via convex duality: Analysis and interpretations of vision transformers. In
+Kamalika Chaudhuri, Stefanie Jegelka, Le Song, Csaba Szepesvari, Gang Niu, and Sivan Sabato
+(eds.), Proceedings of the 39th International Conference on Machine Learning, volume 162 of
+Proceedings of Machine Learning Research, pp. 19050-19088. PMLR, 17-23 Jul 2022. URL
+https://proceedings.mlr.press/v 162/sahiner22a.html.
+
+Hassan Sajjad, Fahim Dalvi, Nadir Durrani, and Preslav Nakov. Poor man’s bert: Smaller and faster
+transformer models. arXiv e-prints, pp. arXiv—2004, 2020.
+
+13
+Published as a conference paper at ICLR 2023
+
+Michael E Sander, Pierre Ablin, Mathieu Blondel, and Gabriel Peyré. Sinkformers: Transformers with
+doubly stochastic attention. In International Conference on Artificial Intelligence and Statistics,
+pp. 3515-3530. PMLR, 2022.
+
+Victor Sanh, Lysandre Debut, Julien Chaumond, and Thomas Wolf. Distilbert, a distilled version of
+bert: smaller, faster, cheaper and lighter. arXiv preprint arXiv:1910.01108, 2019.
+
+Bernhard Schélkopf, Alexander J Smola, Francis Bach, et al. Learning with kernels: support vector
+machines, regularization, optimization, and beyond. MIT press, 2002.
+
+Peter Shaw, Jakob Uszkoreit, and Ashish Vaswani. Self-attention with relative position representations.
+In Proceedings of the 2018 Conference of the North American Chapter of the Association for
+Computational Linguistics: Human Language Technologies, Volume 2 (Short Papers), pp. 464-468,
+New Orleans, Louisiana, June 2018. Association for Computational Linguistics. doi: 10.18653/v1/
+N18-2074. URL https://aclanthology.org/N 18-2074.
+
+Zhuoran Shen, Mingyuan Zhang, Haiyu Zhao, Shuai Yi, and Hongsheng Li. Efficient attention:
+Attention with linear complexities. In Proceedings of the IEEE/CVF Winter Conference on
+Applications of Computer Vision, pp. 3531-3539, 2021.
+
+Alex J Smola and Bernhard Schélkopf. A tutorial on support vector regression. Statistics and
+computing, 14(3):199-222, 2004.
+
+Sainbayar Sukhbaatar, Edouard Grave, Guillaume Lample, Herve Jegou, and Armand Joulin. Aug-
+menting self-attention with persistent memory. arXiv preprint arXiv: 1907.01470, 2019.
+
+Siqi Sun, Yu Cheng, Zhe Gan, and Jingjing Liu. Patient knowledge distillation for bert model
+compression. arXiv preprint arXiv: 1908.09355, 2019.
+
+Chang Wei Tan, C. Bergmeir, Francois Petitjean, and Geoffrey I. Webb. Monash university, uea, ucr
+time series regression archive. ArXiv, abs/2006.10996, 2020.
+
+Binh Tang and David S. Matteson. Probabilistic transformer for time series analysis. In A. Beygelz-
+imer, Y. Dauphin, P. Liang, and J. Wortman Vaughan (eds.), Advances in Neural Information
+Processing Systems, 2021. URL https://openreview.net/forum?id=HfpNVDg3ExA.
+
+Yi Tay, Dara Bahri, Liu Yang, Donald Metzler, and Da-Cheng Juan. Sparse Sinkhorn attention.
+In Hal Daumé III and Aarti Singh (eds.), Proceedings of the 37th International Conference on
+Machine Learning, volume 119 of Proceedings of Machine Learning Research, pp. 9438-9447.
+PMLR, 13-18 Jul 2020. URL http://proceedings.mlr.press/v 1 19/tay20a.html.
+
+Yi Tay, Mostafa Dehghani, Samira Abnar, Yikang Shen, Dara Bahri, Philip Pham, Jinfeng Rao,
+Liu Yang, Sebastian Ruder, and Donald Metzler. Long range arena : A benchmark for efficient
+transformers. In International Conference on Learning Representations, 2021. URL https:
+//openreview.net/forum?id=q V yeW- grC2k.
+
+Ian Tenney, Dipanjan Das, and Ellie Pavlick. BERT rediscovers the classical NLP pipeline. In
+Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pp.
+4593-4601, Florence, Italy, July 2019. Association for Computational Linguistics. doi: 10.18653/
+v1/P19-1452. URL https://www.aclweb.org/anthology/P 19-1452.
+
+Hugo Touvron, Matthieu Cord, Matthijs Douze, Francisco Massa, Alexandre Sablayrolles, and Hervé
+Jégou. Training data-efficient image transformers and distillation through attention. arXiv preprint
+arXiv:2012.12877, 2020.
+
+Hugo Touvron, Matthieu Cord, Matthijs Douze, Francisco Massa, Alexandre Sablayrolles, and Hervé
+Jégou. Training data-efficient image transformers distillation through attention, 2021.
+
+Yao-Hung Hubert Tsai, Shaojie Bai, Makoto Yamada, Louis-Philippe Morency, and Ruslan Salakhut-
+
+dinov. Transformer dissection: An unified understanding for transformer’s attention via the lens of
+kernel. arXiv preprint arXiv: 1908.11775, 2019.
+
+14
+Published as a conference paper at ICLR 2023
+
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Lukasz
+Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in neural information
+processing systems, pp. 5998-6008, 2017.
+
+Jesse Vig and Yonatan Belinkov. Analyzing the structure of attention in a transformer language
+model. In Proceedings of the 2019 ACL Workshop BlackboxNLP: Analyzing and Interpreting
+Neural Networks for NLP, pp. 63-76, Florence, Italy, August 2019. Association for Computational
+Linguistics. doi: 10.18653/v1/W19-4808. URL hitps://www.aclweb.org/anthology/W 19-4808.
+
+Elena Voita, David Talbot, Fedor Moiseev, Rico Sennrich, and Ivan Titov. Analyzing multi-head
+self-attention: Specialized heads do the heavy lifting, the rest can be pruned. arXiv preprint
+arXiv:1905.09418, 2019.
+
+Sinong Wang, Belinda Li, Madian Khabsa, Han Fang, and Hao Ma. Linformer: Self-attention with
+linear complexity. arXiv preprint arXiv:2006.04768, 2020.
+
+Xiaolong Wang, Ross Girshick, Abhinav Gupta, and Kaiming He. Non-local neural networks. In
+Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 7794-7803,
+2018.
+
+Zifeng Wang and Jimeng Sun. TransTab: Learning Transferable Tabular Transformers Across Tables.
+In Advances in Neural Information Processing Systems (NeurIPS 2022), 2022.
+
+Sanghyun Woo, Jongchan Park, Joon- Young Lee, and In So Kweon. Cbam: Convolutional block
+attention module. In Proceedings of the European conference on computer vision (ECCV), pp.
+3-19, 2018.
+
+Haiping Wu, Bin Xiao, Noel Codella, Mengchen Liu, Xiyang Dai, Lu Yuan, and Lei Zhang. Cvt:
+Introducing convolutions to vision transformers. In Proceedings of the IEEE/CVF International
+Conference on Computer Vision, pp. 22-31, 2021.
+
+Haixu Wu, Jialong Wu, Jiehui Xu, Jianmin Wang, and Mingsheng Long. Flowformer: Linearizing
+transformers with conservation flows. In International Conference on Machine Learning, 2022.
+
+Zhilin Yang, Zihang Dai, Yiming Yang, Jaime Carbonell, Ruslan Salakhutdinov, and Quoc V
+Le. XInet: Generalized autoregressive pretraining for language understanding. arXiv preprint
+arXiv: 1906.08237, 2019.
+
+George Zerveas, Srideepika Jayaraman, Dhaval Patel, Anuradha Bhamidipaty, and Carsten Eickhoff.
+A transformer-based framework for multivariate time series representation learning. In Proceedings
+of the 27th ACM SIGKDD Conference on Knowledge Discovery & Data Mining, pp. 2114-2124,
+2021.
+
+Shaolei Zhang and Yang Feng. Modeling concentrated cross-attention for neural machine translation
+with Gaussian mixture model. In Findings of the Association for Computational Linguistics:
+EMNLP 2021, pp. 1401-1411, Punta Cana, Dominican Republic, November 2021. Association for
+Computational Linguistics. doi: 10.18653/v1/2021.findings-emnlp.121. URL https://aclanthology.
+org/2021.findings-emnlp.121.
+
+Shuai Zhang, Lina Yao, Aixin Sun, and Yi Tay. Deep learning based recommender system: A survey
+and new perspectives. ACM Computing Surveys (CSUR), 52(1):1-38, 2019.
+
+Hengshuang Zhao, Li Jiang, Jiaya Jia, Philip HS Torr, and Vladlen Koltun. Point transformer. In
+Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 16259-16268,
+2021.
+
+Chen Zhu, Wei Ping, Chaowei Xiao, Mohammad Shoeybi, Tom Goldstein, Anima Anandkumar,
+and Bryan Catanzaro. Long-short transformer: Efficient transformers for language and vision. In
+NeurIPS, 2021.
+
+15
+Published as a conference paper at ICLR 2023
+
+Supplement to “A Primal-Dual Framework for Transformers and
+Neural Networks”
+
+A ADDITIONAL DETAILS ON THE EXPERIMENTS
+
+This section provides datasets, models, and training details for experiments in Section 3. As mentioned
+in Section 3, for Attention-BN models, recentering queries and keys alone is sufficient for accuracy
+improvement, and we weight the mean yz in Eqn 22 with a constant 3. Hence Eqn 22 is simplified to:
+
+N
+hi =~ softmax (ai — Bp)" (kj — Bu) /vD) v;. (26)
+j=l
+
+In our experiments, we consider the constant 3 in Attention-BN/BN+SH and the different downsam-
+pling scales in Attention-SH/SH+BN as hyper-parameters to finetune. All of our experiments are
+conducted on a server with 4 NVIDIA A100 GPUs.
+
+A.1  UEA TIME SERIES CLASSIFICATION
+
+Datasets and metrics The benchmark (Bagnall et al., 2018) consists of 30 datasets. Following (Wu
+et al., 2022), we choose 10 datasets, which vary in input sequence lengths, the number of classes,
+and dimensionality, to evaluate our models on temporal sequences. We report the test accuracy as
+evaluation for the benchmark.
+
+Models and baselines The experiment setups and configurations for the softmax/linear baseline
+and our models are the same as in (Wu et al., 2022) ' (for the PEMS-SF, SelfRegulationSCP2,
+UWaveGestureLibrary datasets) and (Zerveas et al., 2021) * (for the other tasks). In all models, the
+number of heads is 8, whereas the model dimension and number of transformer layers are varied. For
+Attention-SH/SH+BN, we downsample keys and values by the factor of 2, after every two successive
+heads.
+
+A.2 LONG RANGE ARENA BENCHMARK
+
+Datasets and metrics We adopt the tasks: Listops (Nangia & Bowman, 2018), byte-level IMDb
+reviews text classification (Maas et al., 2011), byte-level document retrieval (Radev et al., 2013),
+CIFAR- 10 image classification (Krizhevsky et al., 2009) and the Pathfinder challenge (Linsley et al.,
+2018) in the LRA benchmark for our experiments. They consist of long sequences of length 2k,
+4k, 4K, 1k, and 1K respectively. The evaluation protocol and metric are the same as in (Tay et al.,
+2021).
+
+Models and baselines All our models and softmax/linear baselines follow the same architecture
+and configuration as in (Zhu et al., 2021)°. Each model consists of two layers and 64 embedding
+dimensions. While one head at each layer remains intact, the keys and values of the other heads are
+halved in our Attention-SH/SH+BN experiments.
+
+A.3 IMAGE CLASSIFICATION ON IMAGENET
+
+Datasets and metrics The ImageNet dataset (Deng et al., 2009; Russakovsky et al., 2015) consists
+of 1.28 training images and 504 validation images. The task is to classify 1000 categories. Top-1
+and top-5 accuracies are reported.
+
+Models and baselines Our baseline is DeiT-tiny model (Touvron et al., 2021) with 12
+transformer layers, 4 attention heads per layer, and the model dimension of 192. For model setting
+and setting and configuration, we follow (Touvron et al., 2021)*. The downsampling scales in
+Attention-SH/BN+SH models are [1, 1, 2, 4] for 4 heads at each layer, respectively.
+
+‘Implementation available at https://github.com/thuml/Flowformer.
+Implementation available at https://github.com/gzerveas/mvts_transformer.
+Implementation available at https://github.com/NVIDIA/transformer-Is.
+‘Implementation available at https://github.com/facebookresearch/deit.
+
+16
+Published as a conference paper at ICLR 2023
+
+Table 5: Test Accuracy (%) of the Linear Attention-BN/SH/BN+SH vs. the baseline Linear Atten-
+tion (Katharopoulos et al., 2020) on the UEA Time Series Classification Archive benchmark (Bagnall et al.,
+2018). Our proposed attentions outperform the baseline.
+
+Dataset/Model Baseline Linear | Linear Attention-BN Linear Attention-SH — Linear Attention-BN+SH
+ETHANOLCONCENTRATION 33.84 + 0.66 34.98 + 0.74 34.76 + 0.69 34.35 + 0.70
+FACEDETECTION 69.17 + 0.32 69.22 + 0.17 69.38 + 0.17 69.12 + 0.19
+HANDWRITING 32.87 + 0.27 32.86 + 0.49 32.82 + 0.12 32.98 + 0.36
+HEARTBEAT 75.61 + 0.73 75.78 + 0.71 74.96 + 0.62 75.94 + 0.68
+JAPANESEVOWELS 99.37 + 0.16 99.60 + 0.19 99.28 + 0.41 99.33 + 0.19
+PEMS-SF 83.43 + 0.88 85.74 + 0.67 86.51 + 0.88 84.97 + 0.76
+SELFREGULATIONSCP1 90.90 + 0.40 91.81 + 0.69 90.76 + 0.59 91.92 + 0.60
+SELFREGULATIONSCP2 55.18 + 0.89 56.11 + 0.94 54.44 + 0.88 55.74 + 0.92
+SPOKENARABICDIGITS 99.07 + 0.10 99.01 + 0.07 99.03 + 0.18 98.91 + 0.17
+UWAVEGESTURELIBRARY 85.63 + 0.81 86.04 + 0.86 84.89 + 1.00 85.78 + 0.75
+AVERAGE ACCURACY 72.51 + 0.34 73.12 + 0.20 72.68 + 0.40 72.90 + 0.23
+Table 6: Top-1 and top-5 accuracy (%) of the Attention-Conv2D Deit vs. the baseline Deit with the softmax
+
+attention on the ImageNet image classification task. The Attention-Conv2D Deit significantly outperforms the
+baseline in both top-1 and top-5 accuracy.
+Metric/Model | Baseline Softmax Deit | Attention-Conv2D Deit
+
+Top-1 Ace (%) 72.23 + 0.23 73.18 + 0.24
+Top-5 Acc (%) 91.13 +015 91.52 + 0.13
+
+Table 7: Test Accuracy (%) of the Attention-Conv1D vs. the baseline softmax attention on 5 tasks of the LRA
+benchmark (Tay et al., 2021). Our models outperform the softmax baseline.
+
+Dataset/Model | Baseline Softmax | Attention-Conv1D
+LisTOPs 36.76 + 0.42 37.20 + 0.05
+TEXT 64.90 + 0.07 64.92 + 0.44
+RETRIEVAL 79.68 + 0.52 80.75 + 0.15
+IMAGE 39.23 + 1.35 39.18 + 0.59
+PATHFINDER 72.72 + 0.75 73.01 + 0.24
+AVERAGE ACCURACY | 58.66+0.26 | 59.01 + 0.20
+
+B. ADDITIONAL EXPERIMENTAL RESULTS
+B.1 UEA TIME SERIES CLASSIFICATION USING THE LINEAR ATTENTION-BN/SH/BN+SH
+
+Table 5 summarizes the comparison between the Linear Attention-BN/SH/BN+SH and the baseline
+Linear Attention on the UEA Time Series Classification task. The Linear Attention-BN/SH/BN+SH
+achieve better accuracy than the Linear Attention baseline while being more efficient.
+
+B.2 CONVOLUTION ATTENTION
+
+Table 6 demonstrates the advantage of Attention-Conv2D (Def. 3, Section G) over softmax Deit on
+the ImageNet image classification task. Furthemore, as shown in Table 7, the Attention-Conv1D
+(Def. 4, Section G) outperforms the baseline softmax attention on 5 tasks of the LRA benchmark (Tay
+et al., 2021).
+
+B.3 ADDITIONAL EXPERIMENTS ON THE UEA TIMESERIES CLASSIFICATION BENCHMARK
+AND THE UCR TIME SERIES REGRESSION ARCHIVE
+
+In this section, we further demonstrate the advantage of our Attention-BN/SH/BN+SH on additional
+15 tasks in the UEA Time Series Classification benchmark and on 6 tasks in the UCR Time Series
+Regression benchmark. The results in Table 8 and 9 show that our Attention-BN and Attention-
+SH+BN outperform the baseline softmax transformers significantly on both of these benchmarks,
+while the attention-SH has comparable performance with the baseline but being more effiicient.
+
+B.4 UEA TIME SERIES CLASSIFICATION USING THE SPARSE ATTENTION-BN/SH/BN+SH
+
+Table 10 summarizes the comparison between the Sparse Attention-BN/SH/BN+SH and the Sparse
+Attention baseline on a subset of the UEA Time Series Classification benchmark. Our models
+when combined with Sparse Attention achieve significantly better accuracy than the Sparse Atten-
+tion baseline while the Sparse Attention-SH/BN+SH are more efficient (See Fig. 3 and Fig. 4 in
+Appendix C).
+
+17
+Published as a conference paper at ICLR 2023
+
+Table 8: Root mean square error (RMSE) of the Attention-BN/SH/BN+SH vs. the baseline softmax attention
+on 6 UCR Time Series Regression tasks (Tan et al., 2020). Smaller RMSE indicates better performance.
+
+Dataset/Model | Baseline Softmax | Attention-BN  Attention-SH — Attention-BN+SH
+APPLIANCESENERGY 3.44 + 0.06 3.38 + 0.34 3.39 + 0.02 3.37 + 0.23
+BENZENECONCENTRATION 0.91 + 0.03 0.89 + 0.17 1.00 + 0.09 0.90 + 0.08
+BELINGPM10 92.31 + 1.06 92.00 + 0.89 92.82 + 0.92 92.40 + 0.85
+BEIJINGPM25 59.73 + 1.21 59.55 +0.92 59.66 + 0.88 59.24 + 1.22
+LIVEFUELMOISTURE 43.08 + 0.17 43.01 + 0.50 43.65 + 0.09 43.79 + 0.49
+IEEEPPG 32.12 + 1.25 30.69 + 0.64 = 31.38 + 1.02 30.73 + 1.20
+AVERAGE RMSE | 38.60 + 0.67 | 38.25 + 0.30 38.65 + 0.27 38.40 + 0.51
+
+Table 9: Accuracy (%) of the Attention-BN/SH/BN+SH vs. the baseline softmax attention on other 15 UEA
+Time Series classification tasks (Bagnall et al., 2018).
+Dataset/Model Baseline Softmax | Attention-BN  Attention-SH — Attention-BN+SH
+ARTICULARY WORDRECOGNITION 97.44 + 0.42 98.22 + 0.87 97.22 + 0.95 98.44 + 0.41
+BASICMOTIONS 98.75 + 1.25 99.38 + 1.08 99.37 + 1.06 99.78 + 0.51
+EPILEPSY 93.71 + 1.23 92.27+0.74 89.13 + 1.07 92.02 + 1.02
+ERING 95.18 + 0.52 95.18 +£0.37 94.72 + 0.66 95.46 + 0.40
+FINGERMOVEMENTS 59.67 + 0.47 63.00 + 0.41 61.33 £0.70 63.66 + 0.64
+LIBRAS 85.00 + 0.45 85.37 + 0.69 83.88 + 0.45 85.00 + 0.78
+NATOPS 95.00 + 0.45 95.37 £0.26 96.29 + 0.69 95.74 + 0.94
+RACKETSPORTS 87.28 + 0.82 87.93 £0.31 88.16 +0.54 89.03 + 0.64
+ATRIALFIBRILLATION 33.33 + 2.71 41.67+2.88 35.00 + 2.89 41.68 + 2.80
+CRICKET 94.90 + 0.65 95.37 +£0.65 93.98 + 0.65 96.29 + 0.65
+STANDWALKJUMP 50.00 + 2.33 55.55+2.14 50.01 + 2.34 55.00 + 2.08
+HANDMOVEMENTDIRECTION 63.96 + 2.30 64.414+2.76 61.71 +2.64 66.66 + 2.54
+LSST 58.54 + 0.54 57.05 +0.26 60.34 + 0.73 59.91 + 0.34
+DuUCKDUCKGEESE 64.50 + 1.96 65.00 + 1.73 64.50 + 1.95 65.50 + 1.66
+MOTORIMAGERY 58.66 + 1.25 60.67 + 1.69 59.00 + 1.41 62.00 + 0.81
+AVERAGE ACCURACY 75.73 + 0.51 77.10 +0.22 75.61 40.18 77.74 + 0.24
+Table 10: Test Accuracy (%) of the Sparse Attention-BN/SH/BN+SH vs. the baseline Sparse Attention (Child
+et al., 2019) on a subset of the UEA Time Series Classification Archive benchmark (Bagnall et al., 2018). Our
+proposed attentions outperform the baseline.
+Dataset/Model Baseline Sparse | Sparse Attention-BN Sparse Attention-SH — Sparse Attention-BN+SH
+ETHANOLCONCENTRATION 33.33 + 1.23 33.33 + 0.78 32.50 + 0.57 33.46 + 0.71
+FACEDETECTION 68.58 + 0.95 68.65 + 0.44 68.67 + 0.78 68.44 + 0.51
+HANDWRITING 31.08 + 0.38 31.79 + 0.44 32.75 + 0.39 33.37 + 0.61
+HEARTBEAT 74.95 + 0.81 75.98 + 0.72 74.96 + 0.80 76.09 + 0.75
+JAPANESEVOWELS 99.45 + 0.10 99.54 + 0.12 99.18 + 0.14 99.36 + 0.34
+PEMS-SF 82.08 + 0.63 83.81 + 0.47 82.66 + 0.63 84.01 + 0.89
+SELFREGULATIONSCP1 91.24 + 0.85 91.69 + 0.42 91.47 + 0.84 91.70 + 0.16
+SELFREGULATIONSCP2 55.18 + 0.69 58.52 + 0.71 55.92 + 0.94 56.67 + 0.68
+SPOKENARABICDIGITS 99.04 + 0.06 99.10 + 0.15 99.06 + 0.13 99.15 + 0.09
+UWAVEGESTURELIBRARY 84.90 + 0.39 85.73 + 0.38 85.31 + 0.88 86.56 + 0.25
+AVERAGE ACCURACY 71.98 + 0.38 72.81 + 0.15 72.25 + 0.24 72.88 + 0.35
+
+Table 11: Test Accuracy (%) of the Attention-BN/BN+SH with £ is learnable or set as a hyperparameter on the
+retrieval task (Tay et al., 2021).
+
+Model | Retrieval
+
+Attention-BN (learn 3) 80.77 + 0.23
+Attention-BN+SH (learn 3) 81.31 + 0.25
+Attention-BN ({ as a hyperparameter) 81.05 + 0.08
+
+Attention-BN+SH (3 as a hyperparameter) | 81.20 + 0.11
+
+B.5 ATTENTION-BN/BN+SH WITH LEARNABLE 3
+
+We experiment with our Attention-BN/BN+SH with learnable { on the retrieval task. Table 11 shows
+that learning 6 does not improve much over setting 3 to be a hyperparameter.
+
+C ADDITIONAL RESULTS ON EFFICIENCY ANALYSIS
+
+This section provides more efficiency analysis on our models.
+
+18
+Published as a conference paper at ICLR 2023
+
+A B c D
+Training Testing Training Testing
+
+on
+
+== =
+075 o7s os
+12 1024 2048 4096 6192 512 1028 2048 40968152 512 1028 2048 4096 6192
+Sequence Length Sequence Length Sequence Length Sequence Length
+——dim=64 —dim=128 ——dim=256 —dim=s12 dim =64 dim = 128 — dim=258 —dim=512
+
+Figure 2: (Left) FLOPS ratios and (Right) memory usage ratios between the Attention-SH and the softmax
+attention baseline trained on the LRA retrieval task for different model dimensions and sequence lengths.
+
+A B Cc D
+Training Testing Training Testing
+
+FLOPS ratio
+Memory ratio
+
+5
+yor a0as ae | 85s ——a557 —syas —anne siz 02420484096, siz 1026-2088 4096
+
+‘Sequence Length Sequence Length Sequence Length Sequence Length
+dim =64 —dim=128 —dim= 256 ——dim=s12
+
+dim=64 —dim=128 —dim=258 —dim=512
+Figure 3: (Left) FLOPS ratios and (Right) memory usage ratios between the Sparse Attention-BN+SH and
+the Sparse Attention baseline trained on the LRA retrieval task for different model dimensions and sequence
+lengths. When using our models, the reduction in computation and memory improves with sequence length.
+When scaling up the model with greater model dimension, our methods remain significantly more efficient than
+the baseline.
+
+A B Cc D
+Training Testing Training Testing
+
+102420484096 512 1024 ~—-2048 ~~ 4096 siz taza 204096 siz 10220484096
+‘Sequence Length Sequence Length Sequence Length Sequence Length
+dim =64 —dim=128 —dim= 256 ——dim=s12
+
+cim=04 —dim= 128 —— dim=258 —dim=512
+Figure 4: (Left) FLOPS ratios and (Right) memory usage ratios between the Sparse Attention-SH and the
+Sparse Attention baseline trained on the LRA retrieval task for different model dimensions and sequence lengths.
+When using our models, the reduction in computation and memory improves with sequence length. When
+scaling up the model with greater model dimension, our methods remain significantly more efficient than the
+baseline.
+
+Attention-SH. Fig.2 shows the efficiency benefits of our Attention-SH when trained on the retrieval
+task. Same as in the case of Attention-SH+BN, the efficiency benefits of our Attention-SH over the
+baseline Softmax attention grows when N and D increase.
+
+Sparse Attention-SH/BN+SH. Fig.3 and Fig.4 show that the efficiency advantages of our Sparse
+Attention-BN+SH and Sparse Attention-SH, respectively, increase as the model dimension D and
+sequence length N grow. All models are trained on the LRA retrieval task. In addition to the efficiency
+advantage, the Sparse Attention-BN+SH also significantly outperforms the Sparse Attention baseline
+in terms of accuracy in this task (79.86% vs. 78.20%) while the Sparse Attention-SH achieves a
+comparable result to the baseline. More accuracy advantages of the Sparse Attention-BN/SH/BN+SH
+over the Sparse Attention baseline are given in Table 10.
+
+D_ DERIVING SOFTMAX ATTENTION.
+
+Choosing the appropriate h(a) and (a) allows us to derive the popular softmax attention given in
+Eqn. | and 2. In particular, if we choose h(a) := yy ©(a)"6(k;), Eqn. 10 becomes
+
+Oe) (kj) Die BH) Ok);
+
+TNO @PB( ky) SNe @PORy) e?
+
+M
+
+f(x)
+
+j=l
+
+19
+Published as a conference paper at ICLR 2023
+
+We then select ®(x) = (a, a, eng al, see a), eng al, .) where |, = (Pt) and
+
+{= uD)... (eo / VD)”
+
+| m+---+np=t, l<l<k. (28)
+ny!...np!
+Since
+sot => 3 apt... ap Ute. Yp
+exp ( at y= ¥ = ( ‘) ( ; :): (29)
+<= 6 mtn Pap=t JVny!...np! JVm!...np!
+
+then Eqn. 27 becomes
+
+2)" (#p)"? Hiny™t  (hjDy"P
+
+8
+
+Me
+
+f(x) rn are pV Uj +8
+mt 2L)" (2p)? ja). (32
+_v_ “)
+S (0) vp ves exp (a ae +b. 30)
+
+&.
+
+v;+b
+] T ky vo T
+
+Let 2 = q;, b = 0 and relax the boundness constraint of v; in Remark 1. Eqn. 30 becomes Eqn. 2 of
+the softmax attention (Vaswani et al., 2017).
+
+E BATCH NORMALIZED ATTENTION: DERIVATION OF EQN. 24
+
+‘I
+
+(ai(@) — H@)(ki (2) -H@)) \
+softmax (> ve +6) ) Vj
+
+j=l
+N
+d)p(d) — p(d)k;(d d)p(d
+= Lsotima yo aa = GOED) = WADED + HOH \
+D qi(d)k;(d)—qi(d d)—p(d)k;(d. d)u(d
+; vn (52! Dk (d) uni (a) +m a) 1)
+VU
+I i (d)k 5 (d)—qi (d) w(d)—pe(d) ks (d)+40(d)e(d) \
+a >. exp (o2a ai(d)k 5 (d)—ai( oe jt (d) +e (d) el )
+
+D i (d) kj (d)—p(d) ky (d D d)u(d)—qi(d) (a
+Vv;
+N D i (d) ke 57 (d) —p(d)k 51 (d) D ‘Duld—qild ald ‘j
+Vjrar &XP (o2a ee) exp (o2a eed
+D i (d) kj (d)—p(d) ky (d
+exp (o2a aOR —niGes(@))
+
+N D i (d)k 1 (d)—p(d)k 51 (d. J
+1 jai eXP ee ee)
+softmax y Sa Ee v;
+VD(o7, + €)
+
+2. ai(d)k;(d) — Tira yy (DR; (A)
+softmax (3 We} $6) ) V;. (31)
+
+&.
+IL
+»
+
+S
+IL
+
+Me iM=
+
+j=l
+
+F ATTENTION WITH THE RESIDUAL CONNECTION AND MATRIX
+PROJECTIONS
+
+In this supplement, we first discuss attention with the residual connection and matrix projections in
+Appendix F.
+
+Suppose we are given a ‘raining data {(21,y1),-.-,(@v.yn)} C X x Y, where Y = R= and
+Y =R”>. Here, 1,...,@y are the training inputsd, and yi,..., yw are the training targets. In
+
+20
+Published as a conference paper at ICLR 2023
+
+order to derive the attention with the residual connection and query, key, and value matrix projections,
+we define the function f as follows
+
+proj
+
+y=f(a):= ®) Leto, (32)
+where w € X = R?=, Wri = fw, oe WHT € REX, &(-) = [61(-),.. -:6d,(-)] : R?
+Re, W = [w},...,wp,]! € R?**, b © R?», and h(x) is a vector-scalar function. We fit
+the function f to the training data {(a1,y1),...,(@n, yn)} with an La regularization on W and
+‘W?'°) by solving the following convex optimization problem:
+
+ae > 24 10} ))2 —
+minimize 5D lwal? + DS wir OL (6(d) +€(@)
+
+€5,€),9=1,.,N
+yj(d) — wy ®(WPx;)/h(ay) — aj — B(d) < © + €)(d)
+
+subject to wy (Wa) /h(x;) +a;+b(d)—yj;(d)<e+€j(d) , j=1,...,N,d=1,...,Dy.
+£)(d), €(d) > 0
+
+(33)
+
+The “ene of the “een problem 3 33 i is given by
+
+N Dy
+35 wal? + Sle [wr /P +S 35 (6:(@) +8) — OY (mi(MEi(@) + 150)
+j=ld=1 j=l d=1
+. + (WP)
+_ SY aj(a) (< + €;(d) — y;(d) + wy ia) + ae, + v(a))
+j=ld=1 J
+N Dy
+< x ®(WPMla ;)
+Vaile) (e+ Gq + wld) — ww) 2) — 9, Hay),
+j=ld=1
+
+(34)
+
+Similar to the derivation in Section 2.1, the partial derivatives of £; with respect to the primal variable
+
+wa, d=1,..., , D,, have to vanish for optimality, which leads to
+
+N N f
+a O(W ax; ) - O(W'a;)
+
+Ow L1 = Wa — L(as(a) — 4;(d)) hia)) 0 = wa Llas(a) @;(d)) hw)
+(35)
+
+Note that here we only find the form of the optimal solution for W = [w1,...,wp,]'. The optimal
+
+value of W?' can then be found by optimization algorithm such as the (stochastic) gradient descent
+when training the transformer.
+
+Let vj = ([“ area Qo Ca (P))T 5 =1,...,.N, we obtain the following support vector
+expansion of the function f:
++
+N N . :
+Lo (wn proj ma) - O(WP%a,) | O(WPMe)
+j=l jal j
+N . N . . T
+yo u(t) = asl) &(WPiz) &(WPiz,) 5 a(Do) = (Ds) &(WPiz) (Wiz)
+fie) ia) Ie) Tie)
+&(Wrrig)T OCWPEi
+> ( 2) ( @)) +a +b. (36)
+aX ()
+
+Residual connection ; : : ;
+Here, the support vector expansion of f already includes a residual connection. The softmax attention
+
+can then be derived by selecting h(x) := ay }(WPix)? &(WPx;) and choosing ® as in
+Eqn. 28 in Section 2.1. Note that in Eqn. 36, {a,;}_, and @ are the training samples and test sample,
+respectively. In order to derive the key, query, and value matrix projections in attention, we can then
+relax Eqn. 36 by letting W?'x; = Wea;, Wx = Woa, vj = Wy x; and choosing the test
+sample x among the training samples {a; ye
+
+21
+Published as a conference paper at ICLR 2023
+
+Remark 6 Here, for self-attention, we choose the test sample x among the training samples {x; a
+to compute the attention score of a token to other tokens in the same sequence. For cross-attention
+where a token in a sequence attends to tokens in another sequence, this constraint can be removed.
+
+G 2D-CONVOLUTION ATTENTION
+
+In this section, we discuss attention with 2D-convolution. Suppose we are given a training
+data {(ai7™, yi"@"),.0., (aie Ny UN Ny )t C & x VY, where ¥ = R?* and Y = RP»,
+tra n train train train inj
+Here, xy"",..., aviv, are the training inputs, and y;"*"",..., SUNG x Ny are the training tar-
+gets. Let train € RN#*Nw*Psz be the 3D-tensor of training inputs, where X'"'"(h,w,d) =
+
+Nex (h—1)-4+w (4)- Given a new set of inputs {a1,...,@N,x Nw} C &¥ and the corresponding
+
+3D-tensor X € RN#*Nw*Ps of these inputs, where X(h, w,d) = @yy x(n—1)+w(d). We consider
+the function f applying on the 3D-tensor X and taking the following form
+
+®(Flatten(Conv2D(X, s))(i))
+
+f(e;) =W cm .
+
+i=1,...,Ny x Nw (37)
+
+where Conv2D is the depth-wise 2D-convolution (Howard et al., 2017), with the kernel size s x s
+and identical kernel channels, applied on the input tensor X. Here, the last dimension of X,
+ie., D,, is the depth. Also, &(x) = [¢i(x),...,¢p,(#)] € R?*, W = [wi,...,wp,]' €
+R?»*Ps, & € R?», and h is a vector-scalar function. We fit the function f to the training data
+{arr yf"), (wey yey.) } with an Ly regularization on W, i.e., a ridge regres-
+sion, by solving the following convex optimization problem:
+
+(€:(@) + &)(d))
+
+NuxNw Dy NuxNw Dy
+minimize sliwig +e YS LEM +E) = Sol? +C
+€;,€;,j=1,...NuxNw j=l d=1 j=l d=l
+r (Flatten(Conv2D(X‘""”, s))(j
+ys") — 0 een cron) oD — ola) < e+ (a)
+roar
+subject t ®(Flatten(Conv2D(X""”, s))(j 7 z
+subject to wy 2(Flatten( ues DD) 4. (a) — yper(ay <b Gd)
+&;(d), E;(d) )>0, 7 =1,...,.Nuy x Nw, d=1,...,Dy.
+(38)
+The Lagrangian of the optimization problem 38 is given by
+NuxNw Do NuxNw Du .
+“3 wall? +O S> Yo (Ela) +&(@) - » (ny (Ej(a) + 1)(DE,(0))
+j=l d=1 j=l d=
+NuxNw Dv train: .
++ (Flatten Cony2D xX s))(j)
+— Yala (e+e urea a eC)
+j=l d=1 uae)
+NuxNw Dy train ;
+~ = ®(Flatten(Conv2D(X »8))(j)
+— Vaio (c+ Gq + yper(a) — wy SAatentCom2 NID) ay),
+j=l d= nay”)
+(39)
+Similar to the derivation in Section 2.1 in the main text, the partial derivatives of 2 with respect to
+the primal variable wg,d=1,..., , D,, have to vanish for optimality, which leads to
+NuxNw train F
+~ ®(Flatten(Conv2D(X 8))(9))
+Bgl = wa- YD) (oy(d) ~ &;(4)) are 0 40)
+j=l j
+NuxNw train ;
+~ (Flatten(Conv2D(X +8
+Swi= Yo (ay(d) — ay(a)) aMenComeOO S) an)
+
+h(a' train)
+
+Il
+a
+
+j
+
+22
+Published as a conference paper at ICLR 2023
+
+— pai); (1) oj (Dv) = 4; (Dv) )T
+Let vj = [Steer ge]
+
+Eqn. 38, we obtain the following support vector expansion of the linear basis function f:
++
+
+»j=1,...,Ny x Nw, and substitute Eqn. 41 into
+
+f(x) = “st aj(1) = &;(1) Aaj “st aj(Dv) = (Dv) Aij + b,
+
+(air) h(x,) pores (ala) h(a;)
+
+= Jy. + b, 42
+a fey ”
+j=l
+where Aj; := ©(Flatten(Conv2D(X, s))(z)) ' @(Flatten(Conv2D(X'"”, s))(7)).
+Same as in Section 2.1, we set b, = 0. To derive the softmax normalization in attention, we choose
+h(xi) = a Aj, and select © as in Eqn. 28. Let the training inputs {w{""",..., ah} CX
+be the attention keys {k1,..., kn, x Ny } C K, where K = R®, in self-attention. Also, let the new
+inputs {a1,...,@Nj,x Ny} C & be the attention queries {q1,..., Nyx Nw } C K in self-attention.
+We define the 2D-Convolution Attention (Attention-Conv2D) as follows:
+
+Definition 3 (2D-Convolution Attention) Given a set of the key and value vectors {k;, ven,
+and a set of the query vectors {qi ex Nw Denote the key tensor and the query tensor by K €
+
+RN#*NwXP and Q € RN#*Nw*?, respectively, where K(h,w,d) = kyyx(n—1)+w(d) and
+Q(h, w, d) = nw x(n—1)+w(d). The 2D-Convolution Attention (Attention-Conv2D) computes the
+corresponding output vector h, of the query q; by the following attention formula:
+N
+hy = SS softmax (Flatten(Com2D(Q. s)) (i) ' Flatten(Conv2D(K, s))(3)/vD) v5, (43)
+j=l
+where the Conv2D(., s) is the depth-wise 2D-convolution (Howard et al., 2017) with the kernel size
+s x sand identical kernel channels.
+
+Remark 7 (Convolutional Projection for Attention in the Convolutional vision Transformer)
+The convolutional projections used in the Convolutional vision Transformer (CvT) (Wu et al., 2021)
+can be derived from Eqn. 42 by letting the training input tensor X""™” to be the 2D input matrix of
+size N x D, of the self-attention layer (see Section 1.1 in the main text) reshaped into a 3D tensor of
+size Ny x Nw x Dz where N = Ny x Nw. Here, to avoid confusion, we denote the input of the
+self-attention layer by X'*"“' and its reshaped version by Reshape2D(X'"?"*). We then replace the
+depth-wise 2D-convolution by the depth-wise separable 2D-convolution in (Wu et al., 2021) and
+remove the constraint that the kernels have identical channels. In order to derive the convolutional
+projections for the keys, queries, and values in CVT, for i,j =1,...,N, we let
+
+kj = Flatten(Conv2D(K""™”, s))(j)) = ®(Flatten(Conv2D(Reshape2D(X'"?""), s, Wiz) (3),
+qi = Flatten(Conv2D(X, s))(i)) = &(Flatten(Conv2D(Reshape2D(X'"?™'), s, Wa)) (i),
+
+vj = Flatten(Conv2D(K""™”, s))(j)) = ®(Flatten(Conv2D(Reshape2D(X'"?™'), s, Wy))(j).
+(44)
+Here, we specify the kernel/filter W x, Wa, and Wy to emphasize that the convolutional projec-
+tions in CVT uses different kernels to compute keys, queries, and values in self-attention. Eqn. 44
+matches the convolutional projects in CvT. By choosing h and ® similar to above, we can derive the
+convolutional attention in CvT.
+
+H_ 1D-CONVOLUTION ATTENTION
+
+Following the derivation for the Attention-Conv2D in Appendix G above, we can derive the 1D-
+Convolution Attention (Attention-Conv1D) in a similar way by letting X'"’" € RN*P= and
+X € R= be 2D-matrices of training inputs and new inputs, respectively, and by replacing
+Conv2D by Conv1D, which is the depth-wise 1D-convolution, with the kernel size s x 1 and identical
+kernel channels, applied on the input tensor X. Here, the last dimension of X, i.e., D,,, is the depth.
+We define the 1D-Convolution Attention (Attention-Conv1D) as follows:
+
+Definition 4 (1D-Convolution Attention) Given a set of the key and value vectors {kj,vj}iW1,
+and a set of the query vectors {q;}_,. Denote the key matrix and the query matrix by K :=
+
+23
+Published as a conference paper at ICLR 2023
+
+[ki,---, vky]! € RN*? and Q := [q,---,qn]' € RX*?, respectively. The 1D-Convolution
+Attention (Attention-Conv1D) computes the corresponding output vector h; of the query q; by the
+
+following attention formula:
+N
+
+hi = > softmax (ConviD(Q, s)(i)' ConID(K, s)(j)/VD) V5, (45)
+j=l
+where the Conv1D(., s) is the depth-wise 1D-convolution with the kernel size s x | and identical
+kernel channels.
+
+I. ATTENTION WITH BATCH NORMALIZATION AND SCALED HEADS
+
+The Attention-BN+SH combines both the Attention-BN and Attention-SH. The
+Attention-BN+SH fits the function f*, s 1,..., H, in Eqn. 17 with training sets
+{(ki,yt),..., (kN, YN, bs ARE yl). (ke. Xt, )} Cc Kx Dd of different sizes
+M,,..., Ny, where K = R? and Y=R”. The function ris defined as:
+
+sO((@-w)Os)
+
+S(a + b*, 46
+(a) = Ws oa) (46)
+where
+N. v N;
+— -1 1 1 —
+=— y ki, ss = | ————...., $(d))?.
+
+Ns ta of te os +e 8 j=l
+
+(47)
+
+Following the same derivation as in Section 2.1, we derive the following support vector expansion of
+
+f*
+Ns B((a — p*) ©s* ')O((kS — p*) Os* *)
+f(x) 3 oS ve + be. (48)
+2 a ((@— w) Os")
+8 a5 1) 45 (1) a5 (Dv) ~&5 (Dv)
+Here, v; [ates press hs (ks — moe)
+j = 1,...,N. Same as in Section 2.1, in Eqn. 48, we choose © as in Eqn. 28, h*(a) :=
+yy" ( x)! (k2), and b* = 0 to obtain the Batch Normalized Attention with Scaled Heads
+xd tion. -BN+SH), which is defined as follows:
+
+1
+
++
+, where a5 and aj are the dual variables,
+
+Definition 5 (Batch Normalized Attention with Scaled Heads) Given H sets of the key and value
+
+vectors {k}, oye pee {hiv vty Ne for each set of H query vectors q},...,q#,i=1,..., N,
+the Batch Normalized Attention with Scaled Heads (Attention-BN+SH) computes the corresponding
+output vector h, of the queries qi... 4}! by the following attention formula:
+5 s st Ss s s -t s
+hi = > We ( Sosefimas (a — Was )T((k}—p)os*')/VD) v}}, 49)
+j=l
+where 7 t \
+1 s 1 1 2 lA,
+3 a oF = — (kid) — wd)”.
+Nz [2 32 N.
+j=l oy +e on +e S$ j=1
+(50)
+Following the same Remark 5 in Section 2.3.2, given input sequence X := [ma,: +++ jay]! € RN*P=
+of N feature vectors in self-attention, in order to generate the sets of {k*, v 5 UF My at the scale s*”, we
+
+can downsample the input X before projecting into the key matrix K and the value matrix V. In this
+paper, we use the average-pooling to downsample X.
+
+As in the same case of Attention-BN, for Attention-BN+SH, recentering queries and keys
+
+alone are sufficient for accuracy improvement, and we weight the mean pz in Eqn 49 with a constant
+8. Hence Eqn. 49 is simplified to:
+H
+
+Ns
+h, = We > sofemas (a — Bp)" (kes — 5u°)/VD) v |. 6)
+= =
+
+24
+Published as a conference paper at ICLR 2023
+
+Table 12: The values of 8 for Linear Attention-BN/BN+SH and Sparse Attention-BN/BN+SH trained on the
+
+selected 10 UEA tas
+
+Dataset/Model | Linear Attention-BN Linear Attention-BN+SH | Sparse Attention-BN — Sparse Attention-BN+SH
+ETHANOLCONCENTRATION 0.15 0.95 0.8 0.2
+FACEDETECTION 0.6 0.6 0.6 0.6
+HANDWRITING 0.25 0.3 0.3 0.3
+HEARTBEAT 0.6 0.15 0.4 0.5
+JAPANESEVOWELS 0.6 0.6 0.6 0.6
+PEMS-SF 0.35 0.65 0.5 0.6
+SELFREGULATIONSCP1 0.35 0.25 0.1 0.9
+SELFREGULATIONSCP2 0.75 0.15 0.5 0.3
+SPOKENARABICDIGITS 0.6 0.6 0.6 0.6
+UWAVEGESTURELIBRARY 0.65 0.55 0.9 0.3
+
+Table 13: The values of for Attention-BN/BN+SH trained on 25 UEA Time Series classification tasks (Bagnall
+et al., 2018) and 6 UEA Time Series Regression tasks.
+
+Dataset/Model Attention-BN — Attention-BN+SH
+ETHANOLCONCENTRATION 0.25 0.15
+FACEDETECTION 0.6 0.6
+HANDWRITING 0.65 0.25
+HEARTBEAT 0.55 0.85
+JAPANESEVOWELS 0.6 0.6
+PEMS-SF 0.25 0.35
+SELFREGULATIONSCP 1 0.5 0.85
+SELFREGULATIONSCP2 1.2 0.9
+SPOKENARABICDIGITS 0.65 0.6
+UWAVEGESTURELIBRARY 0.1 0.2
+ARTICULARY WORDRECOGNITION 0.2 0.6
+BASICMOTIONS 0.1 0.1
+EPILEPSY 0.3 0.2
+ERING 0.1 0.9
+FINGERMOVEMENTS 1.0 0.3
+LIBRAS 0.3 0.7
+NATOPS 1.0 0.4
+RACKETSPORTS 1.0 04
+ATRIALFIBRILLATION 0.9 0.6
+CRICKET 0.2 1.0
+STANDWALKJUMP 1.0 0.6
+HANDMOVEMENTDIRECTION 0.5 0.5
+LSST 0.3 0.2
+DuCKDUCKGEESE 0.6 0.3
+MOTORIMAGERY 0.2 0.3
+APPLIANCESENERGY 0.4 0.2
+BENZENECONCENTRATION 0.2 0.1
+BELJINGPM10 0.1 0.5
+BEUINGPM25 0.1 0.2
+LIVEFUELMOISTURE 0.1 0.3
+IEEEPPG 0.4 0.2
+
+Table 14: The values of 3 of Attention-BN/BN+SH trained on the 5 tasks of the LRA benchmark (Tay et al.,
+
+2021).
+
+Dataset/Model | Attention-BN | Attention-BN+SH
+
+LisTOps 0.5
+TEXT 0.5
+RETRIEVAL 1.0
+IMAGE 0.2
+PATHFINDER 0.2
+
+0.2
+0.8
+1.0
+0.2
+0.4
+
+J > HYPERPARAMETERS
+
+In this section, we provide the hyper-parameters for our best models.
+
+J.1. UEA TIME SERIES CLASSIFICATION AND REGRESSION
+
+For these two benchmarks, use the set of downsampling factors s = [1, 1,2, 2, 4, 4,8, 8] for Attention-
+SH/BN+SH and Linear/Sparse Attention-SH/BN+SH models trained on the UEA benchmark. Ta-
+ble 13 and Table 12 provide the values of 6 used for our best Attention-BN/BN+SH and Linear
+Attention-BN/BN+SH, Sparse Attention-BN/BN+SH models trained on subsets of the two bench-
+
+marks.
+
+25
+Published as a conference paper at ICLR 2023
+
+J.2. LONG RANGE ARENA BENCHMARK
+
+For all 5 tasks of the LRA benchmark, we set the downsampling factors s of Attention-SH/BN+SH,
+Linear/Sparse Attention-SH/BN+SH is [1, 2] and kernel size of Attention-Conv1D models is 5. In
+addition, Table 14 provides the values 3 of Attention-BN/BN+SH models trained on the benchmark.
+
+J.3. IMAGENET CLASSIFICATION
+
+This task’s 3 of Attention-BN/BN+SH is 1. Attention-SH/BN+SH has the downsampling factor of
+[1, 1, 2, 4], and the kernel size of Attention-Conv2D is (2, 2).
+
+26

@@ -1,0 +1,2621 @@
+Published as a conference paper at ICLR 2023
+
+SUBQUADRATIC ALGORITHMS FOR KERNEL MATRI-
+CES VIA KERNEL DENSITY ESTIMATION
+
+Ainesh Bakshi Piotr Indyk Praneeth Kacham
+MIT MIT CMU
+ainesh@mit.edu indyk@mit.edu pkacham@cs.cmu.edu
+Sandeep Silwal Samson Zhou
+MIT UC Berkeley and Rice University
+silwal@mit.edu samsonzhou@gmail.com
+
+ABSTRACT
+
+Kernel matrices, as well as weighted graphs represented by them, are ubiquitous
+objects in machine learning, statistics and other related fields. The main drawback
+of using kernel methods (learning and inference using kernel matrices) is effi-
+ciency — given n input points, most kernel-based algorithms need to materialize
+the full n x n kernel matrix before performing any subsequent computation, thus
+incurring 2(n”) runtime. Breaking this quadratic barrier for various problems has
+therefore, been a subject of extensive research efforts.
+
+We break the quadratic barrier and obtain subquadratic time algorithms for several
+fundamental linear-algebraic and graph processing primitives, including approx-
+imating the top eigenvalue and eigenvector, spectral sparsification, solving lin-
+ear systems, local clustering, low-rank approximation, arboricity estimation and
+counting weighted triangles. We build on the recently developed Kernel Density
+Estimation framework, which (after preprocessing in time subquadratic in n) can
+return estimates of row/column sums of the kernel matrix. In particular, we de-
+velop efficient reductions from weighted vertex and weighted edge sampling on
+kernel graphs, simulating random walks on kernel graphs, and importance sam-
+pling on matrices to Kernel Density Estimation and show that we can generate
+samples from these distributions in sublinear (in the support of the distribution)
+time. Our reductions are the central ingredient in each of our applications and
+we believe they may be of independent interest. We empirically demonstrate the
+efficacy of our algorithms on low-rank approximation (LRA) and spectral sparsi-
+fication, where we observe a 9x decrease in the number of kernel evaluations over
+baselines for LRA and a 41x reduction in the graph size for spectral sparsification.
+
+1 Introduction
+
+For a kernel function k : R¢ x R¢ > Randa set X = {21...a2,} C R¢ of n points, the entries
+of the n x n kernel matrix K are defined as K;,; = k(x;,2,;). Alternatively, one can view X as
+the vertex set of a complete weighted graph where the weights between points are defined by the
+kernel matrix A’. Popular choices of kernel functions k include the Gaussian kernel, the Laplace
+kernel, exponential kernel, etc; see (Schélkopf et al., 2002; Shawe-Taylor et al., 2004; Hofmann
+et al., 2008) for a comprehensive overview.
+
+Despite their wide applicability, kernel methods suffer from drawbacks, one of the main being effi-
+ciency — given n input points in d dimensions, many kernel-based algorithms need to materialize the
+full n x n kernel matrix K before performing the computation. For some problems this is unavoid-
+able, especially if high-precision results are required (Backurs et al., 2017). In this work, we show
+that we can in fact break this 2(n7) barrier for several fundamental problems in numerical linear
+algebra and graph processing. We obtain algorithms that run in 0(n”) time and scale inversely-
+proportional to the smallest entry of the kernel matrix. This allows us to skirt several known lower
+Published as a conference paper at ICLR 2023
+
+bounds, where the hard instances require the smallest kernel entry to be polynomially small in n.
+Our parameterization in terms of the smallest entry is motivated by the fact in practice, the smallest
+kernel value is often a fixed constant (March et al., 2015; Siminelakis et al., 2019; Backurs et al.,
+2019; 2021; Karppa et al., 2022). We build on recently developed fast approximate algorithms for
+Kernel Density Estimation (Charikar & Siminelakis, 2017; Backurs et al., 2018; Siminelakis et al.,
+2019; Backurs et al., 2019; Charikar et al., 2020). Specifically, these papers present fast approximate
+data structures with the following functionality:
+
+Definition 1.1 (Kernel Density Estimation (KDE) Queries). For a given dataset X C R* of size
+n, kernel function k, and precision parameter ¢ > 0, a KDE data structure supports the following
+operation: given a query y € R¢, return a value KDEx (y) that lies in the interval [(1 — ¢)z, (1+
+€) 2], where z = Yonex k(x, y), assuming that k(x,y) > 7 for alla € X.
+
+The performance of the state of the art algorithms for KDE also scales proportional to the smallest
+kernel value of the dataset (see Table 1). In short, after a preprocessing time that is sub-quadratic (in
+n), KDE data structures use time sublinear in n to answer queries defined as above. Note that for all
+of our kernels, k(a,y) < 1 for all inputs x, y.
+
+Table 1: Instantiations of KDE queries. The query times depend on the dimension d, accuracy ¢,
+and lower bound 7. The parameter ( is assumed to be a constant.
+
+Type | | Preprocessing Time | Query Time | Reference
+Gaussian 270 oo 270 essay | (Charikar et al., 2020)
+Exponential atin aavtecn | (Charikar et al., 2020)
+Laplacian atte ais (Backurs et al., 2019)
+Rational Quadratic ate ng 4s (Backurs et al., 2018)
+
+1.1 Our Results
+
+We show that given a KDE data structure as described above, it is possible to solve a variety of matrix
+and graph problems in subquadratic time 0(n), i.e., sublinear in the matrix size. We emphasize
+that in our applications, we only require black-box access to KDE queries. Given this, we design
+algorithms for problems such as eigenvalue/eigenvector estimation, low-rank approximation, graph
+sparsification, local clustering, aboricity estimation, and estimating the total weight of triangles.
+
+Our results are obtained via the following two-pronged approach. First, we use KDE data structures
+to design algorithms for the following basic primitives, frequently used in sublinear time algorithms
+and property testing:
+
+1. sampling vertices by their (weighted) degree in IX (Theorems C.2 and C.4 and Algorithms 2 / 4),
+
+2. sampling random neighbors of a given vertex by edge weights in A and sampling a random
+weighted edge (Theorem C.5 and Algorithms 5 and 6),
+
+3. performing random walks in the graph K (Theorem C.7 and Algorithm 7), and
+
+4. sampling the rows of the edge-vertex incident matrix and the kernel matrix /, both with proba-
+bility proportional to respective row norms squared (Section D.1, Theorem D.1, and Section D.2,
+Corollary D.10 respectively).
+
+In the second step, we use these primitives to implement a host of algorithms for the aforementioned
+problems. We emphasize that these primitives are used in a black-box manner, meaning that any
+further improvements to their running times will automatically translate into improved algorithms
+for the downstream problems. For our applications, we make the following parameterization, which
+we expand upon in Remark B.1 and Section B.1. At a high level, many of our applications, such as
+spectral sparsification, are succinctly characterized by the following parameterization.
+
+Parameterization 1.1. All of our algorithms are parameterized by the smallest edge weight in the
+kernel matrix, i.e., the smallest edge weight in the matrix K is at least rT.
+Published as a conference paper at ICLR 2023
+
+Table 2: Summary of linear algebra and graph applications for KDE subroutines. We suppress
+dependence on the precision ¢. In spectral/local clustering and low-rank approximation, k denotes
+the number of clusters and the rank of the approximation desired, respectively. The parameter @
+refers to the quality of the underlying clusters; see Section E.1.
+
+Problem # of KDE Queries Post-processing time Prior Work
+Spectral sparsification (Thm. 1.2) o(s o(2¢ Remark B.1
+Laplacian system solver (Thm. 1.2) O(S O( 24 Remark B.1
+Low-rank approx. (Thm. 1.5) O(n) O(n- poly (k) + nkd) Remark B.3
+Eigenvalue Spectrum approx. (Thm. 1.3) O(1/r) O(d/rT) Q(n?d)
+Approximating Ist Eigenvalue (Thm. 1.4) Remark B.2 d- poly(1/7) wo(n) (Remark B.2)
+Local clustering (Thm. 1.6) fe) (poly(k) 4 te) fe) (poly(k) & ote) Remark B.4
+Spectral clustering (Thm. E.7) (o) (4 te) (24) + O (nk) Remark B.4
+Atboricity estimation (Thm. 1.8) 6(*) O(2 O(n®) + O(n?d)
+Triangle estimation (Thm. 1.9) fa) (+) O(s Q(n2d)
+
+Our applications derived from the basic graph primitives above can be partitioned into two overlap-
+ping classes, linear-algebraic and graph theoretic results. Table 2 lists our applications along with
+the number of KDE queries required in addition to any post-processing time. We refer to the spe-
+cific sections of the body listed below for full details. We note that in all of our theorems below, we
+assume access to a KDE data structure of Definition 1.1 with parameters ¢ and Tr.
+
+One of our main results is spectral sparsification of the kernel matrix Kr interpreted as a weighted
+graph. In Section D.1, we compute a sparse subgraph whose associated matrix closely approximates
+that of the kernel matrix AK’. The most meaningful matrix to study for such a sparsification is the
+Laplacian matrix, defined as D — K where D is a diagonal matrix of vertex degrees. The Laplacian
+matrix encodes fundamental combinatorial properties of the underlying graph and has been well-
+studied for numerous applications, including sparsification; see (Merris, 1994; Batson et al., 2013;
+Spielman, 2016) for a survey of the Laplacian and its applications. Our result computes a sparse
+graph, with a number of edges that is linear in n, whose Laplacian matrix spectrally approximates
+the Laplacian matrix of the original graph K under Parameterization 1.1.
+
+Theorem 1.2 (Informal; see Thm. D.1). Let L be the Laplacian matrix corresponding to the graph
+K. Then, for any € € (0,1), there exists an algorithm that outputs a weighted graph G' with only
+m = O(nlogn/(e?73)) edges, such that with probability at least 9/10, (1—e)L = La = (1+e)L.
+
+The algorithm makes O(m) KDE queries and requires O(md) post-processing time.
+
+We compare our results with prior works in Remark B.1. We also show that Parameterization 1.1 is
+inherent for spectral sparsification. In particular, we use a hardness result from (Alman et al., 2020)
+to show that for the Gaussian kernel, under the strong exponential time hypothesis (Impagliazzo
+& Paturi, 2001), any algorithm that returns an O(1)-approximate spectral sparsifier with O(n1-°)
+
+edges requires 1. (n : 2ioa(t/n)?*) time (see Theorem D.4 for a formal statement). Obtaining the
+
+optimal dependence on 7 remains an outstanding open question, even for Gaussian and Laplace ker-
+nels. Spectral sparsification has further downstream applications in solving Laplacian linear systems,
+which we present in Section D.1.1.
+
+Continuing the theme of the Laplacian matrix, in Section D.3, we also obtain a succinct summary of
+the entire eigenvalue spectrum of the (normalized) Laplacian matrix using a total number of KDE
+queries independent of n, the size of the dataset. The error of the approximation is measured in terms
+of the earth mover distance (see Eq. (D.1)), or EMD, between the approximation and the true set
+of eigenvalues. Such a result has applications in determining whether an underlying graph can be
+modeled from a specific graph generative process (Cohen-Steiner et al., 2018).
+
+Theorem 1.3 (Informal; see Theorem D.11). Let ¢ € (0,1) be the error parameter and L be the
+normalized Laplacian of the kernel graph K. Let 1 > Aq... = Ay, be the eigenvalues of L and let
+
+be the resulting vector. Then, there exists an algorithm that uses O (exp (1/e?) /T) KDE queries
+Published as a conference paper at ICLR 2023
+
+and exp (1/e) -d/T post-processing time and outputs a vector X such that with probability 99/100,
+EMD (A,A) <=.
+
+Again to the best of our knowledge, all prior works for approximating the spectrum in EMD require
+constructing the full graph beforehand, and thus have runtime Q(n7d). Next, we obtain truly sub-
+linear time algorithms for approximating the top eigenvalue and eigenvector of the kernel matrix,
+a problem which was studied in (Backurs et al., 2021). Our result is the following theorem. Our
+bounds, and those of prior work, depend on the parameter p, which refers to the exponent of 7 in the
+KDE query runtimes. For example for the Gaussian kernel, p © 0.173. See Table 1 for other kernels.
+
+Theorem 1.4 (Informal; see Theorem D.15). Given an n x n kernel matrix K that admits a KDE
+data-structure with query time d/(€?r”) (Table 1), there exists an algorithm that outputs a unit
+
+vector v such that v' Kv > (1 — €)Ai(K) in time min (O(a/(e**r4)), O(d/(e*"72+))),
+where y(K) denotes the largest eigenvalue of K.
+
+We discuss related works in Remark B.2. In summary, the best prior result of (Backurs et al., 2021)
+had a runtime of 2(n‘+?) whereas our bound has no dependence on n. Finally, our last linear-
+algebraic result is an additive-error low-rank approximation of the kernel matrix, presented in Sec-
+tion D.2.
+
+Theorem 1.5 (Informal; see Cor. D.10). There exists an algorithm that outputs a rank- r matrix B
+such that ||K — B\|?. < ||K —K,||% +e||K ||}, with probability 99% where K,. is the optimal rank-r
+approximation of I. It uses n KDE queries and O(n: poly(r,1/e) + nrd/e) post-processing time.
+
+We give detailed comparisons between our results and prior work in Remark B.3. As a summary,
+
+(Bakshi et al., 2020b) obtain a relative error approximation with a running time of O(nd (r/)?"*) ;
+
+where w denotes the matrix multiplication constant, whereas our running time is dominated by
+O(nrd/e) and we obtain only additive error guarantees. Nevertheless, the algorithm we obtain,
+which builds upon the sampling scheme of (Frieze et al., 2004), is a conceptually simpler algorithm
+than the algorithm of (Bakshi et al., 2020b) and easier to empirically evaluate. Indeed, we implement
+this algorithm in Section 2 and show that it is highly competitive to the SVD.
+
+We now move onto graph applications. We obtain an algorithm for local clustering, where we are
+asked whether two vertices belong to the same or different vertex communities. The notion of a
+cluster structure is based on the definition of a k-clusterable graph, formally introduced in Defini-
+tion E.3. Intuitively, it describes a graph whose vertices can be partitioned into k disjoint clusters
+with high-connectivity within clusters and relatively sparse connectivity in-between clusters.
+
+Theorem 1.6 (Informal; see Theorem E.5). Let K be a k-clusterable kernel graph with clusters
+V = Ujcicp Vi. Let U,W be one of (not necessarily distinct) clusters V;. Let u,w be randomly
+chosen vertices in partitions U and W with probability proportional to their degrees. There exists
+c = c(e,k) and an algorithm that uses O(c(k,€)/n/t!°) KDE queries and post-processing time,
+with the property that with probability 1 — ¢, if U = W then the algorithm reports that u and w are
+in the same cluster and if U 4 W, the algorithm reports that u and w are in different clusters.
+
+Our definitions for the local clustering result are adopted from prior literature in property testing; see
+Remark B.4 for an overview of related works. Our sparsification result also automatically lends itself
+to an application in spectral clustering, an algorithm that clusters vertices based on the eigenvectors
+of the Laplacian matrix, which is outlined in Section E.2. We obtain an algorithm for approximately
+computing the top few eigenvectors of the Laplacian matrix, which is one of the main bottlenecks in
+spectral clustering in practice, with subquadratic runtime. These approximate eigenvectors are used
+to form the clusters.
+
+Theorem 1.7 (Informal; see Theorem E.8). Let L be the Laplacian matrix of the spectral sparsifier.
+There exists an algorithm that can compute (1 + €)-approximations of the first k eigenvectors of L
+
+in time O (kn/(7?e?"°)).
+
+We also give algorithms for approximating the arboricity of a graph, which is the density of the
+densest subgraph of the kernel graph (see exact definition in Section E.3).
+Published as a conference paper at ICLR 2023
+
+Theorem 1.8 (Informal; see Theorem E.9). There exists an algorithm that uses m = O(n/(€2r))
+KDE queries and O(mn) post-processing time and outputs a sparse subgraph G' of the kernel graph
+such that with high probability, (1 — 2)ag < aq < (1+¢)ag, where ag is the arboricity of G.
+
+To the best of our knowledge, all prior works on computing the arboricity require the entire graph
+to be known beforehand. In addition, computing the arboricity requires time O(nm) where m is
+the number of edges leading to a runtime of O(n*) + O(n?d) (Gallo et al., 1989). In Section E.4,
+we also give an algorithm for approximating the total weight of all triangles of A’, again interpreted
+as a weighted graph. We define weight of a triangle as the product of its edge weights. This is
+a natural definition if weighted edges are interpreted as parallel unweighted edges, in addition to
+having applications in defining cluster coefficients of weighted graphs (Kalna & Higham, 2006;
+Li et al., 2007; Antoniou & Tsompa, 2008). Our bound is similar in spirit to the bound of the
+unweighted case given in (Eden et al., 2017), under a different computation model. We refer to
+Remark B.5 for discussions on related works.
+
+Theorem 1.9 (Informal; see Theorem E.10). There exists an algorithm that makes O(1 /7?) KDE
+queries and the same bound for post-processing time and with probability at least 3, outputs a
+(1 + €)-approximation to the total weight of the triangles in the kernel graph.
+
+On the other hand, there is a line of work that considers dimensionality reduction for kernel density
+estimation e.g., through coresets (Phillips & Tai, 2018; 2020a; Tai, 2022). We view this direction of
+work as orthogonal to our line of study. Lastly, the work (Backurs et al., 2021) is similar in spirit to
+our work as they also utilize KDE queries to speed up algorithms for kernel matrices. Besides top
+eigenvalue estimation mentioned before, (Backurs et al., 2021) also study the problem of estimating
+the sum of all entries in the kernel matrix and obtain tight bounds for the latter.
+
+1.2 Technical Overview
+
+We provide a high-level overview and intuition for our algorithms. We first highlight our algorithmic
+building blocks for fundamental tasks and then describe how these components can be used to handle
+a wide range of problems. We note that our building blocks use KDE data structures in a black-box
+way and thus we describe their performance in terms of the number of queries to a KDE oracle.
+We also note that a permeating theme across all subsequent applications is that we want to perform
+some algorithmic task on a kernel matrix KC without computing each of its entries k(a;, 2;).
+
+Algorithmic Building Blocks. We first describe the “multi-level” KDE data structure, which con-
+structs a KDE data structure on the entire input dataset X, and then recursively partitions X into
+two halves, building a KDE data structure on each half. The main observation here is that if the
+initialization of a KDE data structure uses runtime linear in the size n of X, then at each recursive
+level, the initialization of the KDE data structures across all partitions remains linear. Since there
+are O(log 7) levels, the overall runtime to initialize our multi-level KDE data structure incurs only
+a logarithmic overhead (see Figure | for an illustration).
+
+Weighted vertex sampling. We describe how to sample vertices approximately proportional to their
+weighted degree, where the weighted degree of a vertex x; with 1 € [n] is wi = S04; k(ai, vj).
+We observe that performing n KDE queries suffices to get an approximation of the weighted vertex
+degree of all nm vertices. We can thus think of vertex sampling as a preprocessing step that uses n
+queries upfront and then allows for arbitrary sample access at any point in the future with no query
+cost. Moreover, this preprocessing step of taking n queries only needs to be performed once. Further,
+we can then perform weighted vertex sampling from a distribution that is ¢-close in total variation to
+the true distribution (see Theorem C.4 for details). Here, we use a multi-level tree structure to itera-
+tively choose a subset of vertices with probability proportional to its approximate sum of weighted
+degrees determined by the preprocessing step, until the final vertex is sampled. Hence after the initial
+n KDE queries, each query only uses O(log n) runtime, which is significantly better than the naive
+implementation that uses quadratic time to compute the entire kernel matrix.
+
+Weighted neighbor edge sampling. We describe how to perform weighted neighbor edge sampling
+for a given vertex x. The goal of weighted neighbor edge sampling is to efficiently output a vertex
+
+v such that Priv = xx] — zy forall k € [n]. Unlike the degree case, edge sampling
+jEln).2j Ae 1,
+
+Published as a conference paper at ICLR 2023
+
+is not a straightforward KDE query since the sampling probability is proportional to the kernel
+value between two points, rather than the sum of multiple kernel values that a KDE query provides.
+However, we can utilize a similar tree procedure as in Figure 1 in conjunction with KDE queries.
+
+In particular, consider the tree in Figure 1 where each internal node corresponds to a subset of
+neighbors of x. The two children of a parent node in the tree are simply the two approximately
+equal subsets whose union make up the subset representing the parent node. We can descend down
+the tree using the same probabilistic procedure as in the vertex sampling case: at every node, we
+pick one of the children to descend into with probability proportional to the sum of the edge weights
+represented by the children. The sum of edge weights of the children can be approximated by a query
+to an appropriate KDE data structure in the “multi-level” KDE data structure described previously.
+By appropriately decreasing the error of KDE data structures at each level of the tree, the sampled
+neighbor satisfies the aforementioned sampling guarantee. Since the tree has height O(log n), then
+we can perform weighted neighbor edge sampling, up to a tunably small total variation distance,
+using O(log n) KDE queries and O(log 7) time (see theorems C.5 and C.6 for details).
+
+Random walks. We use our edge sampling procedure to output a random walk on the kernel graph,
+where at any current vertex v of the walk, the next neighbor of v visited by the random walk is
+chosen with probability proportional to the edge weights adjacent to v. In particular, for a random
+walk with T steps, we can simply sequentially call our edge sampling procedure T' times, with each
+instance corresponding to a separate step in the random walk. Thus we can perform T steps of a
+random walk, again up to a tunably small total variation distance, using O(T' log n) KDE queries
+and O(T log n) additional time.
+
+Importance Sampling for the edge-vertex incidence matrix and the kernel matrix. We now
+describe how to sample the rows of the edge vertex incident matrix H and the kernel matrix Kv
+with probability proportional to the importance sampling score / leverage score (see Definition D.2).
+We remark that approximately sampling proportional to the leverage score distribution for H is a
+fundamental algorithmic primitive in spectral graph theory and numerical linear algebra. We note
+that apriori, such a task seems impossible to perform in o(n”) time, even if the leverage scores are
+precomputed for us, since the support of the distribution has size O(n). However, note we do not
+need to compute (even approximately) each leverage score to perform the sampling, but rather just
+output an edge proportional to the right distribution.
+
+We accomplish this by instead sampling proportional to the squared Euclidean norm of the rows of
+H. It is known that oversampling the rows of a matrix by a factor that depends on the condition
+number is sufficient to approximate leverage score sampling (see proof of Theorem D.1). Further,
+we show that H has a condition number (Lemma D.3) that is bounded by poly(1/7). Recall, the
+
+edge-vertex incident matrix is defined as the (3) x n matrix with the rows indexed by all possible
+
+edges and the columns indexed by vertices. For each e = {i,j}, we have Hy; 55; = \/k(xi, 2j) and
+Agi 5},5 = —Vk(2i, x3). We pick the ordering of i and j arbitrarily. Note that this is a weighted
+analogue of the standard edge-vertex incident matrix and satisfies H7H = Lg where Lg is the
+Laplacian matrix of the graph corresponding to the kernel matrix /. For both H and K, we wish
+to sample the rows with probability proportional to row normed squared. For example, the row r.
+corresponding to edge e = (x;,x;) in H satisfies ||r-||3 = 2k(a;,2;). Since the squared norm of
+each row is proportional to the weight of the corresponding edge, we can perform this sampling
+by combining the weighted vertex sampling and weighted neighbor edge sampling primitives: we
+first sample a vertex with probability proportional to its degree and then sample an appropriate
+random neighbor. Thus our row norm sampling procedure is sufficient to simulate leverage score
+sampling (up to a condition number factor), which implies our downstream application of spectral
+sparsification.
+
+We now describe the related primitive of sampling the rows of the kernel matrix A’. Naively per-
+forming this sampling would require us to implicitly compute the entire kernel matrix, which as
+mentioned previously, is prohibitive. However, if there exists a constant c such that the kernel func-
+tion k that defines the matrix K satisfies k(x, y)? = k(cx, cy) for all inputs x, y, then the 23 norm
+of each row can be approximated via a KDE query on the transformed dataset X’ = cX. In par-
+ticular, the & row norms of K are the vertex degrees of the kernel graph for X’. The property that
+k(x,y)? = k(ex, cy) holds for the most popular kernels such as the Laplacian, exponential, and
+Gaussian kernels. Thus, we can sample the rows of the kernel matrix with the desired probabilities.
+Published as a conference paper at ICLR 2023
+
+Linear Algebra Applications. We now discuss our linear algebra applications.
+
+Spectral sparsification. Using the previously described primitives of weighted vertex sampling and
+weighted neighbor edge sampling, we show that an ¢ spectral sparsifier for the kernel density graph
+G can be computed i.e., we compute a graph G” such that for all vectors x, (1 — e)a7 Lax <
+at Lan < (_l+ e)aT Lea, where Lg and Lg denote the Laplacian matrices of the graphs G
+
+and G". Recall that H is the (}) x n matrix such that Hy; = /k(ai,2;) and Hy yy 5 =
+
+—/k(«i, xj). Here we use subsets of [n] of size 2 to index the rows of H and the entry to be made
+negative in the above definition i is ‘ine arbitrarily. It can be verified that H? H = Lg. It is known
+that sampling t = O(n log(n)/e) rows of the matrix H by using the so-called leverage scores gives
+at x (5) selecting-and-scaling matrix S such that with probability at least 9/10,
+
+(l-e)L¢ =(1—-e)H?H = H"S'SH = (1+ ¢)H’H = (1+e)Le. (1)
+
+Thus the matrix SH directly corresponds to a graph G’, which is an ¢ spectral sparsifier for graph
+G. The leverage scores of rows of H are also called “effective resistances” of edges of graph G.
+Unfortunately, with the edge and neighbor vertex sampling primitives that we have, we cannot per-
+form leverage score sampling of H. On the other hand, observe that the squared norm of row {7, j}
+of H is 2k(x;,2;) and with an application of vertex sampling and edge sampling, we can sample
+a row of H from the length squared distribution i.e., the distribution on rows where probability of
+sampling a row is proportional to its squared norm. It is a standard result that sampling from squared
+length distribution gives a Sy rone from this matrix S that satisfies (1.1), although we have to
+sample t = O(«?nlog(n)/e) rows from this distribution, where K = Omax(H)/omin(H) denotes
+the condition number of H (max(H) (resp. Omin(H)) denotes the largest (resp. smallest) positive
+singular values).
+
+With the parameterization that for all i A j, k(a;,x;) > T, we are able to show that x < O(1/71°).
+Importantly, our upper bound on the condition number is independent of the data dimension and
+number of input points. We obtain the upper bound on condition number by using a Cheeger-type
+inequality for weighted graphs. Note that omin(H) > \/A2(H?H) = \/A2(La), where we use
+A2(M) to denote the second smallest eigenvalue of a positive semidefinite matrix. Cheeger’s in-
+equality lower bounds exactly the quantity \2(Zc) in terms of graph conductance. A lower bound
+of 7 on every kernel value implies that every node in the Kernel Graph has a high weighted degree
+and this lets us lower bound A2(G) in terms of T ae a Cheeger-type inequality from (Friedland
+& Nabben, 2002) and shows that O(n log(n)/7%<7) samples from the approximate squared length
+sampling distribution gives an € spectral sparsifier for the graph G.
+
+First eigenvalue and eigenvector approximation. Our goal is to compute a 1 — € approximation
+to A, the first eigenvalue of A’, and an accompanying approximate eigenvector. Such a task is key in
+kernel PCA and related methods. We begin by noting that under the natural constraint that each row
+of sums to at least n7, a condition used in prior works (Backurs et al., 2021), the first eigenvalue
+must be at least n7 by looking at the quadratic form associated with the all-ones vector.
+
+Now we combine two disparate families of algorithms: first the guarantees of (Bhattacharjee et al.,
+2021; Bakshi et al., 2020a) show that sub-sampling a t x t principal submatrix of a PSD matrix
+preserves the eigenvalues of the matrix up to an additive O(n/V‘) factor. Since we’ve shown the
+first eigenvalue of K is at least nr, we can set t roughly O(1/(e?77)) with the guarantee that the top
+eigenvalue of the sub-sampled matrix is at lest (1 — ¢)A. Now we can either run the standard Krylov
+method algorithm (Musco & Musco, 2015) to compute the top eigenvalue of the sampled matrix or
+alternatively, we can instead use the algorithm of (Backurs et al., 2021), the prior state of the art, to
+compute the eigenvalues of the sampled matrix. At a high level, their algorithm utilizes KDE queries
+to approximately perform power method on the kernel graph without creating the kernel matrix. In
+our case, we can instead run their algorithm on the smaller sampled dataset, which represents a
+smaller kernel matrix. Our final runtime is independent of n, the size of the dataset, whereas the
+prior state of the art result of (Backurs et al., 2021) have a w(n) runtime.
+
+Graph Applications. We now discuss our graph applications.
+
+Local clustering. The random walks primitive allow us to run a well-studied local clustering al-
+gorithm on the kernel graph. The algorithm is quite standard in the property testing literature (see
+(Czumaj et al., 2015) and (Peng, 2020)) so we see our main contribution here as showing how the
+algorithm can be initialized for kernel matrices using our building blocks. At a high level, the goal
+Published as a conference paper at ICLR 2023
+
+of the algorithm is to determine if two input vertices u and v belong to the same cluster of the kernel
+graph if the graph has a natural cluster structure (see Definition E.3 for the formal definition). The
+well-studied algorithm in literature performs approximately O(,/n) random walks from u and v of
+a logarithmic length which is sufficient to estimate the distance between the endpoint distribution of
+the random walks. If the vertices belong to the same cluster, the distributions are close in £2 distance
+which can be detected via a standard distribution tester of (Chan et al., 2014). The guarantees of the
+overall local clustering algorithm of (Czumaj et al., 2015) follow for kernel graphs since we only
+need to access the graph via random walks.
+
+Arboricity estimation. The arboricity of a weighted graph G = (V,E,w) is defined as a :=
+
+maxycy wee). Informally, the arboricity of a (weighted) graph represents the maximum
+
+(weighted) density of a subgraph of G'. To approximate the weighted arboricity, we adapt a re-
+sult of (McGregor et al., 2015), who observed that to estimate the arboricity on unweighted graphs,
+it suffices to sample a set of O(|V|/e2) edges of G and computes the arboricity of the subsampled
+graph, after rescaling the weight of edges inversely proportional to their sampling probabilities.
+
+We show that a similar idea works for estimating arboricity on weighted graphs. Although (McGre-
+gor et al., 2015) showed that each edge should be sampled independently without replacement, we
+show that it suffices to sample a fixed number of edges with replacement. Moreover, we show that
+each edge should be one of the weighted edges with probability proportional to the weight of the
+edges, i.e., importance sampling. In fact, a similar result still holds if we only have upper bounds
+on the weight of each edge, provided that we increase the number of fixed edges that we sample by
+the gap between the upper bound and the actual weight of the edge. Thus, our arboricity algorithm
+requires sampling a fixed number of edges, where each edge is sampled with probability propor-
+tional to some known upper bound on its weight. However for kernel density graphs, this is just
+our weighted edge sampling subroutine. Therefore, we achieve improved runtime over the naive ap-
+proach of querying each edge in the kernel graph by using our weighted edge sampling subroutine
+to sample a fixed number of edges. Finally, we compute and output the arboricity of the subsampled
+graph as an approximation to the arboricity of the input graph.
+
+2 Empirical Evaluation
+
+We present empirical evaluations for our algorithms. We chose to evaluate algorithms for low-rank
+approximation (LRA) and spectral sparsification (and spectral clustering as a corollary) as they are
+arguably two of the most well studied examples in our applications and utilize a wide variety of
+techniques present in our other examples of Sections D and E. Our evaluations serve as a proof
+of concept that our queries which we constructed are efficient and easy to implement in practice.
+For our experiments, we use the Laplacian kernel k(x,y) = exp(—||2 — yJ|1/o). A fast KDE
+implementation of this kernel exists due to (Backurs et al., 2019), which builds upon the techniques
+of (Charikar & Siminelakis, 2017). Note that the focus of our work is to use KDE queries in a mostly
+black box fashion to solve important algorithmic problems for kernel matrices. This viewpoint has
+the important advantage that it is flexible to the choice of any particular KDE query instantiation.
+We chose to work with the implementation of (Backurs et al., 2019) since it possesses theoretical
+guarantees, has an accessible implementation!, and has been used in experiments in prior works
+such as (Backurs et al., 2019; 2021). However, we envision other choices of KDE queries, which
+maybe have practical benefits but are theoretically incomparable would also work well due to our
+flexibility.
+
+Datasets. We use two real and two synthetic datasets in our experiments. The datasets used in the
+low-rank approximation experiments are MNIST (points in R7*+) (LeCun, 1998) and Glove word
+embeddings (points in R?°°) (Pennington et al., 2014). We use 104 points from each of the test
+datasets. These datasets have been used in prior experimental works on kernel density estimation
+(Siminelakis et al., 2019; Backurs et al., 2019). The datasets in experimental results for spectral
+sparsification and clustering are described in detail in F.
+
+Evaluation Metrics. For LRA, we use the additive error algorithm detailed in Corollary D.10 of
+Section D.2. It requires sampling the rows of the kernel matrix according to squared row norms,
+
+‘from https: //github.com/talwagner/efficient_kde
+Published as a conference paper at ICLR 2023
+
+which can be done via KDE queries as outlined there. Once the (small) number of rows are sampled,
+we explicitly construct these rows using kernel evaluations. We compare the approximation error of
+this method computed via the standard frobenius norm error to a state of the art sketching algorithm
+for computing low-rank approximations, which is the input-sparsity time algorithm of Clarkson and
+Woodruff (Clarkson & Woodruff, 2013) (IS). We also compare to an iterative SVD solver (SVD).
+All linear algebra subroutines rely on Numpy, Scipy, and Numba implementations when applicable.
+
+Low-rank approximation results. Note that the algorithm in Corollary D.10 has a O(k) depen-
+dence on the number of rows sampled. Concretely we sample 25k rows for a rank k approximation
+which we fix it for all experiments. For the MNIST dataset, the rank versus approximation error is
+shown in Figure 2a. The performance of our algorithm labeled as KDE is given by the blue curve
+while the orange curve represents the IS algorithm. The green curve represents the SVD error, which
+is a lower bound on the error for any algorithm. Note that for SVD calculations, we do not calculate
+the full SVD since that is computationally prohibitive; instead, we use an iterative solver. We can
+see that the errors of all three methods are comparable to each other. In terms of runtime, the KDE
+based method took 24.7 seconds on average for the rank 50 approximation whereas IS took 71.5
+seconds and iterative SVD took 74.72 seconds on average. This represents a 2.9x decrease in the
+running time. The time measured includes the time to initialize the data structures and matrices used
+for the respective algorithms. In terms of the number of kernel evaluations, both IS and iterative
+SVD require the kernel matrix, which is 10° kernel evaluations. On the other hand for the rank 50
+approximation, our method required only 1.1 - 10” kernel evaluations, which is a 9x decrease in the
+number of evaluations. In terms of space, IS and iterative SVD require 10° floating point numbers
+stored due to initializing the full 10* x 10¢ matrix whereas our method only requires 104 - 25 - 50
+floating point numbers for the rank equal to 50 case and smaller for other. This is a 8x decrease in the
+space required. Lastly, we verify that we are indeed sampling from the correct distribution required
+by Corollary D.10. In Figure 2b, we plot the points («;, y;) where x; is the row norm squared for
+the ith row of the kernel matrix kK and y; is the row norm squared computed in our approximation
+algorithm (see Algorithm 9). As shown in Figure 2b, the data points fall very close to the y = x line
+indicating that our algorithm is indeed sampling from approximately the correct ideal distribution.
+
+The qualitatively similar results for the Glove dataset are given in Figures 2c and 2d. For the glove
+dataset, the average time taken by the three algorithms were 37.7s,37.7s, and 44.2s respectively,
+indicating that KDE and IS were comparable in runtime whereas SVD took slightly longer. How-
+ever, the number of kernel evaluations required by the latter two algorithms was significantly larger:
+for rank equal to 10, our algorithm only required 2.6 - 10° kernel evaluations while the other meth-
+ods both required 10° due to initializing the matrix. The space required by our algorithm was also
+smaller by a factor of 40 since we only explicitly compute 25 - 10 rows for the rank = 10 case. For
+Glove, we only perform our experiments up to rank 10 since the iterative SVD failed to converge for
+higher ranks. While computing the full SVD avoids the convergence issue, it’s computationally pro-
+hibitive. For example for MNIST, computing the full SVD of the kernel matrix took 552.9s, which
+is approximately an order of magnitude longer than any of the other methods.
+
+Acknowledgements Ainesh Bakshi was supported by Ankur Moitra’s ONR grant. Praneeth
+Kacham was supported by National Institute of Health (NIH) grant 5401 HG 10798-2, a Simons In-
+vestigator Award of David P. Woodruff, and Google as part of the “Research Collabs” program. Piotr
+Indyk and Sandeep Silwal were supported by the NSF TRIPODS program (award DMS-2022448),
+Simons Investigator Award, MIT-IBM Watson AI Lab and NSF Graduate Research Fellowship un-
+der Grant No. 1745302. Work done in part while Samson Zhou was at Carnegie Mellon University
+and supported by a Simons Investigator Award of David P. Woodruff and by the National Science
+Foundation under Grant No. CCF-1815840.
+
+References
+
+Mohammad Al Hasan and Vachik S Dave. Triangle counting in large networks: a review. Wiley
+Interdisciplinary Reviews: Data Mining and Knowledge Discovery, 8(2):e1226, 2018.
+Published as a conference paper at ICLR 2023
+
+Josh Alman, Timothy Chu, Aaron Schild, and Zhao Song. Algorithms and hardness for linear
+algebra on geometric graphs. In 2020 IEEE 61st Annual Symposium on Foundations of Computer
+Science (FOCS), pp. 541-552. IEEE, 2020.
+
+Ioannis E Antoniou and ET Tsompa. Statistical analysis of weighted networks. Discrete dynamics
+in Nature and Society, 2008, 2008.
+
+Albert Atserias, Martin Grohe, and Daniel Marx. Size bounds and query plans for relational joins.
+In 49th Annual IEEE Symposium on Foundations of Computer Science, 2008.
+
+Arturs Backurs, Piotr Indyk, and Ludwig Schmidt. On the fine-grained complexity of empirical
+risk minimization: Kernel methods and neural networks. In Advances in Neural Information
+Processing Systems 30: Annual Conference on Neural Information Processing Systems, pp. 4308-
+4318, 2017.
+
+Arturs Backurs, Moses Charikar, Piotr Indyk, and Paris Siminelakis. Efficient density evaluation
+for smooth kernels. 2018 IEEE 59th Annual Symposium on Foundations of Computer Science
+(FOCS), pp. 615-626, 2018.
+
+Arturs Backurs, Piotr Indyk, and Tal Wagner. Space and time efficient kernel density estimation in
+high dimensions. In Advances in Neural Information Processing Systems 32: Annual Conference
+on Neural Information Processing Systems, NeurIPS, pp. 15773-15782, 2019.
+
+Arturs Backurs, Piotr Indyk, Cameron Musco, and Tal Wagner. Faster kernel matrix algebra via
+density estimation. In Proceedings of the 38th International Conference on Machine Learning,
+pp. 500-510, 2021.
+
+Ainesh Bakshi and David Woodruff. Sublinear time low-rank approximation of distance matrices.
+Advances in Neural Information Processing Systems, 31, 2018.
+
+Ainesh Bakshi, Nadiia Chepurko, and Rajesh Jayaram. Testing positive semi-definiteness via ran-
+dom submatrices. In 2020 IEEE 61st Annual Symposium on Foundations of Computer Science
+(FOCS), pp. 1191-1202. IEEE, 2020a.
+
+Ainesh Bakshi, Nadiia Chepurko, and David P Woodruff. Robust and sample optimal algorithms for
+psd low rank approximation. In 2020 IEEE 61st Annual Symposium on Foundations of Computer
+Science (FOCS), pp. 506-516. IEEE, 2020b.
+
+Joshua Batson, Daniel A Spielman, Nikhil Srivastava, and Shang-Hua Teng. Spectral sparsification
+of graphs: theory and algorithms. Communications of the ACM, 56(8):87—94, 2013.
+
+Suman K. Bera and Amit Chakrabarti. Towards tighter space bounds for counting triangles and
+other substructures in graph streams. In Symposium on Theoretical Aspects of Computer Science
+(STACS 2017), 2017.
+
+Rajarshi Bhattacharjee, Cameron Musco, and Archan Ray. Sublinear time eigenvalue approxima-
+tion via random sampling. CoRR, abs/2109.07647, 2021. URL https://arxiv.org/abs/
+2109.07647.
+
+Siu-on Chan, Ilias Diakonikolas, Paul Valiant, and Gregory Valiant. Optimal algorithms for test-
+ing closeness of discrete distributions. In Proceedings of the Twenty-Fifth Annual ACM-SIAM
+Symposium on Discrete Algorithms, SODA, pp. 1193-1203, 2014.
+
+Moses Charikar. Greedy approximation algorithms for finding dense components in a graph. In
+Approximation Algorithms for Combinatorial Optimization, Third International Workshop, AP-
+PROX, Proceedings, pp. 84-95, 2000.
+
+Moses Charikar and Paris Siminelakis. Hashing-based-estimators for kernel density in high di-
+mensions. In 58th IEEE Annual Symposium on Foundations of Computer Science, FOCS, pp.
+1032-1043, 2017.
+
+Moses Charikar, Michael Kapralov, Navid Nouri, and Paris Siminelakis. Kernel density estima-
+tion through density constrained near neighbor search. 2020 IEEE 61st Annual Symposium on
+Foundations of Computer Science (FOCS), pp. 172-183, 2020.
+
+10
+Published as a conference paper at ICLR 2023
+
+Justin Y. Chen, Talya Eden, Piotr Indyk, Honghao Lin, Shyam Narayanan, Ronitt Rubinfeld,
+Sandeep Silwal, Tal Wagner, David P. Woodruff, and Michael Zhang. Triangle and four cycle
+counting with predictions in graph streams. CoRR, abs/2203.09572, 2022.
+
+Xue Chen and Eric Price. Condition number-free query and active learning of linear families. CoRR,
+abs/1711.10051, 2017.
+
+Ashish Chiplunkar, Michael Kapralov, Sanjeev Khanna, Aida Mousavifar, and Yuval Peres. Testing
+graph clusterability: Algorithms and lower bounds. In 20/8 IEEE 59th Annual Symposium on
+Foundations of Computer Science (FOCS), pp. 497-508. IEEE, 2018.
+
+Fan RK Chung and Fan Chung Graham. Spectral graph theory. American Mathematical Soc., 1997.
+
+Kenneth L. Clarkson and David P. Woodruff. Low rank approximation and regression in input
+sparsity time. In Symposium on Theory of Computing Conference, STOC, pp. 81-90, 2013.
+
+David Cohen-Steiner, Weihao Kong, Christian Sohler, and Gregory Valiant. Approximating the
+spectrum of a graph. In Proceedings of the 24th ACM SIGKDD International Conference on
+Knowledge Discovery & Data Mining, KDD, pp. 1263-1271, 2018.
+
+Artur Czumaj and Christian Sohler. Testing expansion in bounded-degree graphs. Combinatorics,
+Probability and Computing, 19(5-6):693-709, 2010.
+
+Artur Czumaj, Pan Peng, and Christian Sohler. Testing cluster structure of graphs. In Proceedings
+of the Forty-Seventh Annual ACM on Symposium on Theory of Computing, STOC, pp. 723-732,
+2015.
+
+Tamal K Dey, Pan Peng, Alfred Rossi, and Anastasios Sidiropoulos. Spectral concentration and
+greedy k-clustering. Computational Geometry, 76:19-32, 2019.
+
+Talya Eden, Amit Levi, Dana Ron, and C. Seshadhri. Approximately counting triangles in sublinear
+time. SIAM J. Comput., 46(5):1603-1646, 2017.
+
+Brooke Foucault Welles, Anne Van Devender, and Noshir Contractor. Is a friend” a friend? inves-
+tigating the structure of friendship networks in virtual worlds. In CHI - The 28th Annual CHI
+Conference on Human Factors in Computing Systems, Conference Proceedings and Extended
+Abstracts, pp. 4027-4032, 2010.
+
+Shmuel Friedland. Lower bounds for the first eigenvalue of certain m-matrices associated with
+graphs. Linear Algebra and its Applications, 172:71-84, 1992.
+
+Shmuel Friedland and Reinhard Nabben. On Cheeger-type inequalities for weighted graphs. Journal
+of Graph Theory, 41(1):1-17, 2002.
+
+Alan Frieze, Ravi Kannan, and Santosh Vempala. Fast monte-carlo algorithms for finding low-rank
+approximations. Journal of the ACM (JACM), 51(6):1025-1041, 2004.
+
+Giorgio Gallo, Michael D. Grigoriadis, and Robert Endre Tarjan. A fast parametric maximum flow
+algorithm and applications. SIAM J. Comput., 18(1):30-55, 1989.
+
+Grzegorz Gluch, Michael Kapralov, Silvio Lattanzi, Aida Mousavifar, and Christian Sohler. Spec-
+tral clustering oracles in sublinear time. In Proceedings of the 2021 ACM-SIAM Symposium on
+Discrete Algorithms (SODA), pp. 1598-1617. SIAM, 2021.
+
+Oded Goldreich. Introduction to property testing. Cambridge University Press, 2017.
+
+Oded Goldreich and Dana Ron. On testing expansion in bounded-degree graphs. In Studies in Com-
+plexity and Cryptography. Miscellanea on the Interplay between Randomness and Computation,
+pp. 68-75. Springer, 2011.
+
+Alexander G Gray and Andrew W Moore. N-body problems in statistical learning. Advances in
+
+neural information processing systems, pp. 521-527, 2001.
+
+11
+Published as a conference paper at ICLR 2023
+
+Alexander G Gray and Andrew W Moore. Nonparametric density estimation: Toward computational
+tractability. In Proceedings of the 2003 SIAM International Conference on Data Mining, pp. 203-
+211. SIAM, 2003.
+
+Thomas Hofmann, Bernhard Schélkopf, and Alexander J Smola. Kernel methods in machine learn-
+ing. The annals of statistics, 36(3):1171—1220, 2008.
+
+Russell Impagliazzo and Ramamohan Paturi. On the complexity of k-sat. Journal of Computer and
+System Sciences, 62(2):367-375, 2001.
+
+Piotr Indyk, Ali Vakilian, Tal Wagner, and David P. Woodruff. Sample-optimal low-rank approxi-
+mation of distance matrices. In Conference on Learning Theory, COLT, pp. 1723-1751, 2019.
+
+Satyen Kale and C Seshadhri. Testing expansion in bounded degree graphs. 35th ICALP, pp. 527-
+538, 2008.
+
+Gabriela Kalna and Desmond J Higham. Clustering coefficients for weighted networks. In Sympo-
+sium on network analysis in natural sciences and engineering, pp. 45, 2006.
+
+Matti Karppa, Martin Aumiiller, and Rasmus Pagh. Deann: Speeding up kernel-density estimation
+using approximate nearest neighbor search. In Proceedings of The 25th International Conference
+on Artificial Intelligence and Statistics, pp. 3108-3137, 2022.
+
+Mihail N. Kolountzakis, Gary L. Miller, Richard Peng, and Charalampos E. Tsourakakis. Efficient
+triangle counting in large graphs via degree-based vertex partitioning. Lecture Notes in Computer
+Science, pp. 15-24, 2010.
+
+Ioannis Koutis, Gary L. Miller, and Richard Peng. A nearly-m log n time solver for sdd linear
+systems. In JEEE 52nd Annual Symposium on Foundations of Computer Science, pp. 590-598,
+2011.
+
+Tsz Chiu Kwok, Lap Chi Lau, Yin Tat Lee, Shayan Oveis Gharan, and Luca Trevisan. Improved
+cheeger’s inequality: analysis of spectral partitioning algorithms through higher order spectral
+gap. In Symposium on Theory of Computing Conference, STOC’13, pp. 11-20, 2013.
+
+Yann LeCun. The mnist database of handwritten digits. http://yann. lecun. com/exdb/mnist/, 1998.
+
+Dongryeol Lee and Alexander Gray. Fast high-dimensional kernel summations using the monte
+carlo multipole method. Advances in Neural Information Processing Systems, 21:929-936, 2008.
+
+Dongryeol Lee, Andrew W Moore, and Alexander G Gray. Dual-tree fast gauss transforms. In
+Advances in Neural Information Processing Systems, pp. 747-754, 2006.
+
+James R. Lee, Shayan Oveis Gharan, and Luca Trevisan. Multi-way spectral partitioning and higher-
+order cheeger inequalities. In Proceedings of the 44th Symposium on Theory of Computing Con-
+ference, STOC, pp. 1117-1130, 2012.
+
+Victor E. Lee, Ning Ruan, Ruoming Jin, and Charu C. Aggarwal. A survey of algorithms for dense
+subgraph discovery. In Managing and Mining Graph Data, volume 40 of Advances in Database
+Systems, pp. 303-336. Springer, 2010.
+
+Jure Leskovec, Lars Backstrom, Ravi Kumar, and Andrew Tomkins. Microscopic evolution of social
+networks. In Proceedings of the 14th ACM SIGKDD International Conference on Knowledge
+Discovery and Data Mining, pp. 462-470, 2008.
+
+Wenyuan Li, Yongjing Lin, and Ying Liu. The structure of weighted small-world networks. Physica
+A: Statistical Mechanics and its Applications, 376:708-718, 2007.
+
+Anand Louis, Prasad Raghavendra, Prasad Tetali, and Santosh S. Vempala. Many sparse cuts via
+higher eigenvalues. In Proceedings of the 44th Symposium on Theory of Computing Conference,
+STOC, pp. 1131-1140, 2012.
+
+William B March, Bo Xiao, and George Biros. Askit: Approximate skeletonization kernel-
+independent treecode in high dimensions. SJAM Journal on Scientific Computing, 37(2):A1089—
+A1110, 2015.
+
+12
+Published as a conference paper at ICLR 2023
+
+Andrew McGregor, David Tench, Sofya Vorotnikova, and Hoa T. Vu. Densest subgraph in dynamic
+graph streams. In Mathematical Foundations of Computer Science 2015 - 40th International
+Symposium, MFCS, Proceedings, Part II, pp. 472-482, 2015.
+
+Russell Merris. Laplacian matrices of graphs: a survey. Linear algebra and its applications, 197:
+143-176, 1994.
+
+R. Milo, S. Shen-Orr, S. Itzkovitz, N. Kashtan, D. Chklovskii, and U. Alon. Network motifs: Simple
+building blocks of complex networks. Science, 298(5594):824—827, 2002.
+
+Vlad I Morariu, Balaji Vasan Srinivasan, Vikas C Raykar, Ramani Duraiswami, and Larry S Davis.
+Automatic online tuning for fast gaussian summation. In NIPS, pp. 1113-1120, 2008.
+
+Cameron Musco and Christopher Musco. Randomized block krylov methods for stronger and faster
+approximate singular value decomposition. In Advances in Neural Information Processing Sys-
+tems 28: Annual Conference on Neural Information Processing Systems, pp. 1396-1404, 2015.
+
+Cameron Musco and David P Woodruff. Sublinear time low-rank approximation of positive semidef-
+inite matrices. In 2017 IEEE 58th Annual Symposium on Foundations of Computer Science
+(FOCS), pp. 672-683. IEEE, 2017.
+
+Pan Peng. Robust clustering oracle and local reconstructor of cluster structure of graphs. In Pro-
+ceedings of the 2020 ACM-SIAM Symposium on Discrete Algorithms, SODA, pp. 2953-2972.
+SIAM, 2020. doi: 10.1137/1.9781611975994.179. URL https://doi.org/10.1137/1.
+9781611975994.179.
+
+J
+
+fe}
+
+frey Pennington, Richard Socher, and Christopher D Manning. Glove: Global vectors for word
+representation. In Proceedings of the 2014 conference on empirical methods in natural language
+processing (EMNLP), pp. 1532-1543, 2014.
+
+Jeff M Phillips. ¢-samples for kernels. In Proceedings of the twenty-fourth annual ACM-SIAM
+symposium on Discrete algorithms, pp. 1622-1632. SIAM, 2013.
+
+Jeff M. Phillips and Wai Ming Tai. Improved coresets for kernel density estimates. In Proceedings of
+the Twenty-Ninth Annual ACM-SIAM Symposium on Discrete Algorithms, SODA, pp. 2718-2727,
+2018.
+
+Jeff M. Phillips and Wai Ming Tai. Near-optimal coresets of kernel density estimates. Discret.
+Comput. Geom., 63(4):867—-887, 2020a.
+
+Jeff M Phillips and Wai Ming Tai. Near-optimal coresets of kernel density estimates. Discrete &
+Computational Geometry, 63(4):867—-887, 2020b.
+
+Kent Quanrud. Spectral sparsification of metrics and kernels. In Proceedings of the 2021 ACM-SIAM
+Symposium on Discrete Algorithms, SODA, pp. 1445-1464, 2021.
+
+Parikshit Ram, Dongryeol Lee, William March, and Alexander Gray. Linear-time algorithms for
+pairwise statistical problems. Advances in Neural Information Processing Systems, 22:1527-
+1535, 2009.
+
+Bernhard Schélkopf, Alexander J Smola, Francis Bach, et al. Learning with kernels: support vector
+machines, regularization, optimization, and beyond. MIT press, 2002.
+
+C. Seshadhri, Ali Pinar, and Tamara G. Kolda. Fast triangle counting through wedge sampling. In
+the International Conference on Data Mining (ICDM), 2013.
+
+John Shawe-Taylor, Nello Cristianini, et al. Kernel methods for pattern analysis. Cambridge uni-
+versity press, 2004.
+
+Paris Siminelakis, Kexin Rong, Peter Bailis, Moses Charikar, and Philip Alexander Levis. Rehashing
+kernel evaluation in high dimensions. In Proceedings of the 36th International Conference on
+Machine Learning, ICML, pp. 5789-5798, 2019.
+
+Daniel A Spielman. The laplacian matrices of graphs. In Plenary Talk, IEEE Intern. Symp. Inf.
+Theory (ISIT)n, 2016.
+
+13
+Published as a conference paper at ICLR 2023
+
+Daniel A Spielman and Nikhil Srivastava. Graph sparsification by effective resistances. SIAM
+Journal on Computing, 40(6):1913-1926, 2011.
+
+Daniel A. Spielman and Shang-Hua Teng. Nearly-linear time algorithms for graph partitioning,
+graph sparsification, and solving linear systems. In Proceedings of the 36th Annual ACM Sympo-
+sium on Theory of Computing, pp. 81-90, 2004.
+
+Wai Ming Tai. Optimal coreset for gaussian kernel density estimation. In 38th International Sym-
+posium on Computational Geometry, SoCG, pp. 63:1—63:15, 2022.
+
+Ulrike Von Luxburg. A tutorial on spectral clustering. Statistics and computing, 17(4):395-416,
+2007.
+
+David P. Woodruff. Sketching as a tool for numerical linear algebra. Foundations and Trends® in
+Theoretical Computer Science, 10(1—2):1-157, 2014.
+
+Yan Zheng, Jeffrey Jestes, Jeff M Phillips, and Feifei Li. Quality and efficiency for kernel density
+estimates in large data. In Proceedings of the 2013 ACM SIGMOD International Conference on
+Management of Data, pp. 433-444, 2013.
+
+A Omitted Technical Overview
+
+We provide a technical overview for applications whose discussions were omitted from the main
+text.
+
+Kernel matrix low-rank approximation. In this setting, our goal here is to output a matrix B
+such that
+
+| — Bll < | ~ Kill + || K|>
+
+where Kx; is the best rank-t approximation to the kernel matrix . The efficient algorithm of (Frieze
+et al., 2004) is able to achieve this guarantee if one can sample the ith row r; of K with probability
+pi > Q(1) - |Iri||3/||K||%. We can perform such an action using our primitive, which is capable
+of sampling the rows of KK with probability proportional to the squared row norms for the Lapla-
+cian, exponential, and Gaussian kernels. Thus for these kernels, we can immediately obtain efficient
+algorithms for computing a low-rank approximation.
+
+Spectrum approximation. For this problem, the goal is to compute approximations of all the
+eigenvalues of the normalized Laplacian matrix of the kernel graph such that the error between
+the approximations and the true set of eigenvalues has small error in the earth mover metric. The
+algorithm of (Cohen-Steiner et al., 2018) achieves this guarantee in time independent in the graph
+size given the ability to perform random walks on uniformly sampled vertices. Surprisingly, the
+number of random walks and their length does not depend on the number of vertices. Thus given
+our random walk primitive, we can efficiently simulate the algorithm of (Cohen-Steiner et al., 2018)
+on kernel graphs in a black-box manner.
+
+Spectral clustering. Given our spectral sparsification result, we can immediately obtain a fast
+version of a heuristic algorithm used in practice for graph clustering: we embed each vertex into R*
+using k eigenvectors of the Laplacian matrix and run k-means clustering. Clearly if we have a sparse
+graph, the eigenvector computation is faster. Theoretically, we can show that spectral sparsification
+preserves a notion of clusterability which is weaker than the definition used in the local clustering
+section and we additionally give empirical evidence of the validity of this procedure.
+
+14
+Published as a conference paper at ICLR 2023
+
+Weighted triangle estimation. We define the weight of a triangle as the product of its edges, gen-
+eralizing the case were the edges have integer lengths, so that an edge can be thought of as multiple
+parallel edges. Under this definition, we adapt an algorithm from (Eden et al., 2017), who considered
+the problem in unweighted graphs given query access to the underlying graph. Specifically, we show
+that it suffices to sample a “small” set R of edges uniformly at random and then estimate the total
+weight of triangles including the edges of R under some predetermined ordering. In particular, the
+procedure of estimating the total weight of triangles including the edges e of R involves sampling
+neighbors of the vertices of e, which we can efficiently implement using our weighted neighbor edge
+sampling subroutine.
+
+B_ Further Related Works
+
+Remark B.1. Spectral sparsification for kernel graphs has also been studied in prior works, no-
+tably in (Alman et al., 2020) and (Quanrud, 2021). We first compare to (Alman et al., 2020), who
+obtain a spectral sparsification using an entirely different approach. They obtain an almost linear
+time sparsifier (n1+°™)) when the kernel is multiplicativily Lipschitz (see Section 1.1.2 in (Alman
+et al., 2020) for definition) and show hardness for constructing such a sparsifier when it is not.
+Focusing on the Gaussian kernel, under Parameterization 1.1, (Alman et al., 2020) obtain an al-
+
+gorithm that runs in time O (na + n2vlos(t/7) log nlog(log n) je), whereas our algorithm runs in
+
+O (ndlog?(n)/(€27?-°173+())) time. We also note that the dimension d can be upper bounded
+by O(log n/e*) by applying Johnson-Lindenstrauss to the initial dataset. Therefore, (Alman et al.,
+2020) obtain a better dependence on 1/7, whereas we obtain a better dependence on n. A similar
+comparison can be established for other kernels as well. In practice, T is set to be a small fixed con-
+stant, whereas n can be arbitrarily large. Indeed in practice, a common setting of 7 is 0.01 or 0.001,
+irrespective of the size of the dataset (March et al., 2015; Siminelakis et al., 2019; Backurs et al.,
+2019; 2021; Karppa et al., 2022).
+
+We now compare our guarantees to that of (Quanrud, 2021). The author studies spectral sparsifi-
+cation resurrected to smooth kernels (for example kernels of the form 1/||x — y||§ which have a
+polynomial decay; see (Quanrud, 2021) for a formal definition). This family does not include Gaus-
+sian, Laplacian, or exponential kernels. For smooth kernels, (Quanrud, 2021) obtained a sparsifier
+with a nearly optimal O(n/e?) number of edges in time O(nd/e”). Our algorithm obtains a similar
+dependence in n, d,< but includes an additional 1/r* factor. However, it generalizes for any kernel
+supporting a KDE data structure, which includes smooth kernels (Backurs et al., 2018) (see Table
+1 for a summary of kernels where our results apply). Our techniques are also different: (Quanrud,
+2021) does not use KDE data structures in a black-box manner to compute the sparsification as we
+do. Rather, they simulate importance sampling on the edges of the kernel graph directly. In addition
+to the nearly linear sparisifier, another interesting feature of (Quanrud, 2021) is that it enriches the
+connections between spectral sparsification of kernel graphs and KDE data structures. Indeed, the
+data structures used in (Quanrud, 2021) are inspired by and were used in the prior work of (Backurs
+et al., 2018) to create KDE query data structures themselves. Furthermore, the paper demonstrates
+how to instantiate KDE data structures for smooth kernels using the kernel graph sparsifier itself.
+We refer to (Quanrud, 2021) for details.
+
+Remark B.2. We remark that our algorithm returns a sparse vector v supported on roughly
+O(1/(e?7?)) coordinates. The best prior result is that of (Backurs et al., 2021) which presented
+an algorithm with total runtime O (eee).
+
+In comparison, our bound has no dependence on n and is thus a truly sublinear runtime. Note that
+the bound of (Backurs et al., 2021) does not depend on 7. We do not state the number of KDE
+queries used explicitly in Table 2 since our algorithm uses KDE queries on a subsampled dataset
+and in addition, only uses them by calling the algorithm of (Backurs et al., 2021) as a subroutine
+(on the subsampled dataset). The algorithm of (Backurs et al., 2021) uses O(1 /e) KDE queries but
+with various different initialization of 7 so it is not meaningful to state “one” bound for the number
+of KDE queries used and thus the final runtime is a more meaningful quantity to state. Lastly, the
+authors in (Backurs et al., 2021) present a lower bound of Q(nd) for estimating the top eigenvalue
+A1, which ostensibly seems at odds with our stated bound which has no dependence on n. However,
+
+15
+Published as a conference paper at ICLR 2023
+
+the lower bound presented in (Backurs et al., 2021) essentially sets 7 = 1/poly(n) for a large
+polynomial factor depending on n (we estimate this factor to be 2(n”)). Since we parameterize our
+dependence via 7, which in practice is often set to a fixed constant, we can bypass the lower bound.
+
+Remark B.3. We now compare our low-rank approximation result with a recent work of (Musco &
+Woodruff, 2017; Bakshi et al., 2020b). They showed the following theorem:
+
+Theorem B.1 (Theorem 4.2, (Bakshi et al., 2020b)). Given a n x n PSD matrix. A, target rank
+r € [n] and accuracy parameter € € (0,1), there exists an algorithm that queries O (nr/e) entries
+in A and with probability at least 9/10, outputs a rank-r matrix B such that
+
+|A- Bl, < +e) |A-Arllp.
+
+where A, is the best rank-r approximation to A. Further, the running time is O (n (r/o), where
+
+w is the matrix multiplication constant.
+
+We note that their result applies to kernel matrices as well via the following fact.
+
+Fact B.2 (Kernel Matrices are PSD, (Schélkopf et al., 2002)). Let k be a reproducing kernel and X
+be n data points in R¢. Let K be the associated n x n kernel matrix such that Kjy,j = h(a, 25).
+Then, K > 0.
+
+Here, the family of reproducing kernels is quite broad and includes polynomial kernels, Gaussian,
+and Laplacian kernel, among others. Therefore, their theorem immediately implies a relative error
+low-rank approximation algorithm for kernel matrices. Our result and the theorem of (Bakshi et al.,
+2020b) have comparable runtimes. While (Bakshi et al., 2020b) obtain relative-error guarantees, we
+only obtain additive-error guarantees.
+
+However, reading each entry of the kernel matrix require O(d) time and thus (Bakshi et al., 2020b)
+
+we
+
+obtain an running time of O (na (r/e) ‘), whereas our running time is dominated by O(nrd/e).
+
+We note that similar ideas as our algorithm for additive error LRA were previously used to de-
+sign subquadratic algorithms running in time 0(n) for low-rank approximation of distance matri-
+ces (Bakshi & Woodruff, 2018; Indyk et al., 2019).
+
+Remark B.4. Our definitions for the local clustering result are adopted from prior literature in
+property testing; see (Kale & Seshadhri, 2008; Czumaj & Sohler, 2010; Goldreich & Ron, 2011;
+Czumaj et al., 2015; Chiplunkar et al., 2018; Dey et al., 2019; Peng, 2020; Gluch et al., 2021) and
+the references within. Our algorithmic details for the local cluster section are also derived from prior
+works, such as the works of (Czumaj et al., 2015) and (Peng, 2020); indeed, many of the lemmas of
+the local clustering section follow in a straightforward fashion from (Czumaj et al., 2015) and (Peng,
+2020). However, the key difference between these works and our work is that they are in the property
+testing model where one assumes access to various graph queries in order to design sublinear graph
+algorithms. To the best of our knowledge, implementation of prior works on local clustering requires
+having access to the entire neighbor of a vertex when performing random walks, thereby implying
+the runtime of Q(nd) per step of the walk. In contrast, we give efficient constructions of these
+commonly assumed queries for kernel graphs, rather than assuming oracle access. Indeed, the fact
+that one can easily take existing algorithms which hold in non kernel settings and apply them to
+kernel settings in a straightforward manner via our queries can be viewed a major strength of our
+work.
+
+Remark B.5. Our general bound of the number of KDE qeuries required to approximate the total
+weight of triangles in Theorem E. 10 is O(m/wa/wr), where wa is the sum of all entries of K and
+wr is the total weight of triangles we wish to approximate. This bound is a natural generalization of
+the result of (Eden et al., 2017). There, the goal is to approximate the total number of triangles in an
+unweighted graph given access to queries of an underlying graph in the form of random vertices and
+random neighbors of a given vertex (assuming the entire graph is stored in memory). While their
+model differs from our work, we note that KDE queries constructed in Section C play a similar role
+to the queries used in (Eden et al., 2017). There the authors give a bound of O(m3/?/T) queries
+where T is the total number of triangles. In our case, we indeed get a bound of the order of m3/? in
+the numerator as wg < MWmax and wry is the natural analogue of T in (Eden et al., 2017). Finally
+note that under our parameterization of every edge in the kernel graph possessing weight at most 1
+and at least r, our bound reduces to at most O(1/r*) KDE queries.
+
+16
+Published as a conference paper at ICLR 2023
+
+We finally note that to the best of our knowledge, all prior works for approximating the number of
+triangles in a graph require the full graph to be instantiated, which implies a lower bound of time
+Q(n?d) in our setting.
+
+We also note that our paper is closely related to the field of (graph) property testing. In graph prop-
+erty testing, it is customary to assume query access to an unknown graph via vertex and edge
+queries (Goldreich, 2017). While specific details vary, common queries include access to random
+vertices and random neighbors of a given vertex, among others. The goal of the field is to design
+algorithms that require queries sublinear in n, the number of vertices, or n?, the size of the graph.
+We can interpret the graph primitives we construct as a realization of the property testing model
+where queries are explicitly constructed.
+
+B.1_ Preliminaries
+
+First, we discuss the cost of constructing KDE data structure and performing the queries described
+in Definition 1.1. Table 1 summarizes previous work on kernel density estimation though for the
+sake of uniformity, we list only “high-dimensional” data structures, whose running times are poly-
+nomial in the dimension d. Those data structures have construction times of the form O(dn/(r?e?))
+and answer KDE queries in time O(d/(r?e?)), under the condition that for all queries y we have
+x vex k(x, y) = T (which clearly holds under our Parameterization 1.1). The algorithms are ran-
+domized, and report correct answers with a constant probability. The values of p lie in the interval
+[0, 1), and depend on the kernel. For comparison, note that a simple random sampling approach,
+
+which selects a random subset R C X of size O(1/(re?)) and reports Try Dueer K(a,y), achieves
+the exponent of p = 1 for any kernel whose values lie in [0, 1].
+
+ER
+
+We view our algorithms as parameterized in terms of 7, the smallest edge length. We argue this is
+a natural parameterization. When picking a kernel function k, we also have to pick a scale term a
+(for example, the exponential kernel is of the form k(x, y) = exp(—||x — y||2/c)). In practice, a
+common choice of o follows the so called ‘median rule’ where a is set to be the median distance
+among all pairs of points in _X. Thus, according to the median rule, the ‘typical’ kernel values in the
+graph K are (1). While this is only true for ‘typical,’ and not all, edge weights in K’, we believe the
+KDE query abstraction of Definition 1.1 still provides nontrivial and useful algorithms for working
+with kernel graphs. Typically in practice, the setting of 7 is a small constant, independent of the size
+of the dataset (Karppa et al., 2022).
+
+We note that, in addition to the aforementioned algorithms with theoretical guarantees, there are
+other practical algorithms based on random sampling, space partition trees (Gray & Moore, 2001;
+2003; Lee et al., 2006; Lee & Gray, 2008; Morariu et al., 2008; Ram et al., 2009; March et al.,
+2015), coresets (Phillips, 2013; Zheng et al., 2013; Phillips & Tai, 2020b), or combinations of these
+methods (Karppa et al., 2022), which support queries needed in Definition 1.1; see (Karppa et al.,
+2022) for an in-depth discussion on applied works.
+
+While these algorithms do not necessarily have as strong theoretical guarantees as the ones discussed
+above and in Table 1, we can nonetheless use them via black box access in our algorithms and utilize
+their practical benefits.
+
+C_ Algorithmic Building Blocks
+
+C.1 Multi-level KDE
+
+We first describe the “multi-level” KDE data structure, which is required in our algorithms. The data
+structure recursively constructs a KDE data structure on the entire dataset X, and then recursively
+partitions X into two halves, building a KDE data structure on each half. See Algorithm 1 for more
+details.
+
+17
+Published as a conference paper at ICLR 2023
+
+Ain
+
+Ai n/2 An/241,n
+
+Aijn/4
+
+Figure 1: Multi-level Kernel Density Estimation Data Structure.
+
+Algorithm 1 Multi-level KDE Construction
+
+Require: Input dataset X C R%, precision ¢ > 0
+1: T=X
+while |T| > 1 do
+Construct KDEx queries
+Recursively apply Multi-level KDE Construction to T[1 : |m/2]] and T[|m/2| +1: m]
+end while
+: Return all the data structures associated with the KDE query constructions
+
+Lemma C.1. Given a dataset X C R“, suppose the initialization of the KDE data structure defined
+in Definition 1.1 uses runtime f(n,¢€) for some function linear in n. Then the total construction time
+of Algorithm 1 is f (nlogn, €).
+
+Proof. The proof follows from the fact that at each recursive level, we do O(f(n,¢)) total work
+since f is linear in n and there are O(log n) levels.
+
+C.2 Weighted Vertex Sampling
+
+We now discuss our fundamental primitives. The first one is sampling vertices by their (weighted)
+degree.
+
+Definition C.1 (Weighted Vertex Sampling). The weighted degree of a vertex x; with i € [n] is
+wi = V4 k(a;, xj). The goal of weighted vertex sampling is to output a vertex v such that Priv =
+
+) — (itews .
+xi] = ye for alli € [n).
+
+This is a straightforward application of using n KDE queries to get the (weighted) vertex degree of
+all n vertices. Note that this only takes n queries and only has to be done once. Therefore, we can
+think of vertex sampling as a preprocessing step that uses O(n) queries upfront and then allows for
+arbitrary access at any point in the future with no query cost.
+
+Algorithm 2 Vertex Sampling by (Weighted) Degree
+
+Require: Precision ¢
+
+Ensure: Reals p; such that (1 — e)deg(x;) < p; < (1 + e)deg(2;) for alll <i<n
+: fori =1toi=ndo
+
+end for
+
+: Return {p;}?_,
+
+Rene
+
+Once we acquire {p;}7_,, we can perform a fast sampling procedure through the following algo-
+
+rithm, which we state in slightly more general terms.
+
+18
+Published as a conference paper at ICLR 2023
+
+Algorithm 3 Sample from Positive Array
+
+Require: Input array A = [a1,--- ,a,] with a; > 0 for all i. Access to queries Ajj = ));<p<j &
+forl<i<j<n. —_
+1: T=A
+2: while |T| > 1 do
+3: m=len(T)
+4. at (TIL: |m/2]]) // Can be simulated using an Ajj; query
+5: be d(T {Lm/2] +1: m))
+6: if Unif[0,1] < a/(a + b) then
+7: T<T{L: |m/2]]
+8: else
+9: T <—T{|m/2| +1: m]
+10: end if
+
+11: end while
+12: Return the single element in T
+
+Combining Algorithms 2 and 3, we can perfectly sample from the degree distribution of the graph
+
+Algorithm 4 Faster Degree Sampling
+Require: Reals p; such that (1 — ¢)deg(x;) < p; < (1+ )deg(z;) for alll <i<n
+
+1: ¢ © index in [n], which is the output of running Algorithm 3 on the array {p;}”_,
+2: Return 2;
+
+We now analyze the correctness and the runtimes of the algorithms proposed in Section C. First, we
+give guarantees on Algorithm 2.
+
+Theorem C.2. Algorithm 2 returns {p;}"_, such that (1 —e)deg(x;) < pi < (1+e)deg(2:) for all
+
+Proof. The proof follows by the Definition of a KDE query, Definition 1.1.
+
+We now analyze Algorithm 3, which samples from an array based on a tree data structure given
+access to consecutive sum queries. The analysis of this process will also greatly facilitate the analysis
+of other algorithms from Section C.
+
+Lemma C.3. Algorithm 3 samples an index i € [n] proportional to a; in O(logn) time with
+O(log n) queries.
+
+Proof. Consider the sampling diagram given in Figure 1. Algorithm 3 does the following: it first
+queries the root node Aj,,, and then its two children Aj m,Am-+1,n Where m = |n/2|. Note that
+
+Ain = Aim + Am+i,n- It then picks the tree rooted at Aj, with probability Een ot and oth-
+
+ie[n]
+erwise, picks the tree rooted at Am4+i,n. The procedure recursively continues by querying the root
+node, its two children, and picking one of its children to be the new root node with probability pro-
+portional to the child’s weight given by an appropriate query access. This is done until we reach a
+leaf node that corresponds to an index 7 € [n].
+
+We now prove correctness. Note that each node of the tree in Figure 1 corresponds to a subset
+SC [n]. We prove inductively that the probability of landing on the vertex is equal to }) jc, ai-
+This is true for the root node of the tree since the algorithm begins at the root note. Now consider
+transitioning from some node S to one of its children S$), 52. We know that we are at node S' with
+probability }7,<¢ ai/ )); aj. Furthermore, we transition to S; with probability )7;<5, ai/ jes 4-
+Therefore, the probability of being at 5; is equal to
+
+Vies, 4% : Mies @ — Lies, i
+Dies Qj > Qj Yi aj
+
+19
+Published as a conference paper at ICLR 2023
+
+Since there is only one path from the root node to any vertex of a tree, this completes the induction.
+
+The runtime and the number of queries taken follows from the fact that the sampling procedure
+descends on a tree with O(log n) height.
+
+Combining Algorithms 2 and 3 allows us to sample from the degree distribution of the graph AK up
+to low error in total variation (TV) distance.
+
+Theorem C.4. Algorithm 4 samples from the degree distribution of K up to TV error O(¢) using a
+fixed overhead of n KDE queries and runtime O(log n).
+
+Proof. Since p; is with a 1 +e factor of deg(x;) for all i, then {p;}7_, is O(e) close in total variation
+distance from the true degree distribution. Moreover, Algorithm 3 perfectly samples from the array
+{p;}"_1, which proves the first part of the theorem.
+
+For the second part, note that acquiring {p;}"_, requires n KDE queries. We can then construct the
+data structure for Algorithm 3 by computing all the partial prefix sums in O(n) time. Now the query
+access required by Algorithm 3 can be computed in O(1) time through an appropriate subtraction o}
+two prefix sums. Note that the previous steps need to be only done once and can be utilized for al
+future runs of Algorithm 3. It follows from Lemma C.3 that Algorithm 4 takes O(log n) time.
+
+C.3 Weighted Edge Sampling and Weighted Neighbor Edge Sampling
+
+We describe how to perform weighted neighbor edge sampling.
+Definition C.2 (Weighted Neighbor Edge Sampling). Given a vertex x;, the goal of weighted neigh-
+
+See eae for alli € [nJ.
+
+bor edge sampling is to output a vertex v such that Priv = xx.| = x
+jen, jfi
+
+Algorithm 5 Sample Random Neighbor
+
+Require: Input vertex x; € X, precision €
+Ensure: x € X \ {x;} such that the probability of selecting x is proportional to k(x;, x)
+
+1: e! =e/logn
+
+2: while |T| > 1 do
+
+3: me ||
+
+4. a@ © KDE ptism/2},e’(#i)
+
+5: b & KDEp[m/241:m),e' (Xi)
+6: if; € T[1: m/2] then
+
+7: aa (l—e')k(xji, 2)
+8: end if
+
+9: if; € T[m/2+1: m] then
+10: be b— (1—e')k(x;, 2)
+11: endif
+
+12: if Unif[0,1] < a/(a + 6) then
+13: T<T[L: m/2|
+
+14: else
+
+15: T <—T{[m/2+1:m]
+
+16: endif
+
+17: end while
+18: Return the single element in T
+
+We now prove the correctness of Algorithm 5 based on the ideas in Lemma C.3. Note that Algorithm
+5 takes in input a precision level ¢, which can be adjusted and impacts the accuracy of KDE queries.
+We will discuss the cost of initializing KDE queries with various precisions in Section B.1.
+Theorem C.5. Let x; € X be an input vertex. Consider the distribution D over X \ {x;}, the neigh-
+bors of x; in the graph K, induced by the edge weights in IK. Algorithm 5 samples a neighbor from
+a distribution that is within TV distance O(e) from D using O(log n) KDE queries and O(log n)
+time. In addition, we can perfectly sample from D using O(log n/T) additional kernel evaluations
+in expectation.
+
+20
+Published as a conference paper at ICLR 2023
+
+Proof. The proof idea is similar to that of Lemma C.3. Given a vertex x;, its adjacent edges have
+associated weights and our goal is to sample an edge proportion to these weights. However, unlike
+the degree case, performing edge sampling is not a straightforward KDE query as an edge only
+cares about the kernel value between two points, rather than the sum of kernel values that a KDE
+query provides. Nevertheless, we can utilize the tree procedure outline in the proof of Lemma C.3
+in conjunction with KDE queries with over various subsets of X .
+
+Imagine the same tree as in Figure | where each subset corresponds to a subset of neighbors of
+x; (note that x; cannot be its own neighbor and hence we subtract k(x;,x;) in line 7 or line 10).
+Algorithm 5 descends down the tree using the same probabilistic procedure as in the proof of Lemma
+C.3: at every node, it picks one of the children to descend to with probability proportional to its
+weight. Here, the weight of a child node in the tree in Figure 1| is the sum of the weights of the edges
+connecting to the corresponding neighbors of ;.
+
+Now compare the telescoping product of probabilities that lands us in some leaf node a; to the
+ideal telescoping product if we knew the exact array of edge weights as in the proof of Lemma 6.
+Suppose the tree has height @. At each node in our actual path descending down the tree, we take the
+next step according to the ideal descent (according to the ideal telescoping product), with the same
+probability, except for possibly an overestimate or underestimate by a factor of 1+’ or 1—e’ factor
+respectively.
+
+Therefore, we land in the correct leaf node with the same probability as in the ideal telescoping
+product, except our probability can be off by a multiplicative (1 + ’)* factor. However, since e! =
+e/lognand £ < log n, this factor is within 1 +e. Thus, we sample from the correct distribution over
+the leaves of the trees in Figure 1 up to TV distance O(e). Now by doing O(1/r) steps of rejection
+sampling, we can actually get a prefect sample of the edge. This is because the denominator of the
+fraction for Pr[v = x | is at least Q(nr) and at most n so we can estimate the proportionality
+constant in the denominator by n which is only at most O(1/7) multiplicative factor larger. Hence
+by standard guarantees of rejection sampling, we only need repeat the sampling procedure O(1/T)
+additional times.
+
+Algorithm 6 Sample Random Edge by Weight
+
+Ensure: Sample edge («;,2;) with probability at least (1 — ¢)k(a;,7;)
+1: v + random vertex by using Algorithm 4
+2: w + random Neighbor of v using Algorithm 5.
+3: Return: Edge (v, w).
+
+Theorem C.6 (Weighted Edge Sampling). Algorithm 6 returns a random edge of K with probability
+proportional to at least (1 — €) its weight using 1 call to Algorithm 5.
+
+Proof. Consider an edge (u,v). The vertex wu is sampled with probability at least (1 —
+2e)deg(u)/ >> cx deg(a). Given this, the vertex v is then sampled with probability at least
+
+(1 = 2€) 5s ero y= - 2e) festa Using the same analysis for sampling v and then wu,
+aeEX\u , be?
+
+we have that any edge (u,v) is sampled with probability at least 1 — 2 times k(u,v)/ docx w(e)-
+Note that the same rejection sampling remark as in the proof of Theorem C.5 applies and we can
+perfectly sample an edge proportional to its weight with an addition O(1/r) rejection sampling
+steps.
+
+C.4. Random Walk
+
+Theorem C.7. Algorithm 7 outputs a vertex from a vertex within O(Te) total variation distance
+from the true random walk distribution. Each step of the walk requires 1 call to Algorithm 5 .
+
+Proof. The proof follows from the correctness of Algorithm 5 given in Theorem C.5. Lastly we
+again note that by performing an additional O(1/7) rounds of rejection sampling steps (as outlined
+in the end of the proof of Theorem C.5), we can make sure that we are sampling from the true
+random walk distribution at each step of the walk.
+
+21
+Published as a conference paper at ICLR 2023
+
+Algorithm 7 Perform Random Walk
+
+Require: Input vertex x; € X, length of walk T > 1.
+1: Start at vertex x;
+20 ay;
+3: for 7 = 1toT do
+4: w © Sample random neighbor of v (Algorithm 5)
+5: uw
+6: end for
+7: Return v
+
+D_ Linear Algebra Applications
+
+We now present a wide array of applications of the algorithmic building blocks constructed in Sec-
+tion C. Altogether, these applications allow us to understand or approximate fundamental and prop-
+erties of the kernel matrix and the graph JX. In this section we present the linear algebra applications
+and the graph applications are given in Section E.
+
+D.1_ Spectral Sparsification
+
+Algorithm 8 Spectral Sparsification of the Kernel Graph
+
+1: Let t = O(n log(n)/e?73) be the number of edges that are to be sampled
+
+2: Let p denote the distribution returned by Algorithm 2 for a small enough constant €
+3: Initialize G’ = 0
+
+4: fori =1,...,tdo
+
+5: Sample a vertex u from the distribution p
+
+6: Sample a neighbor v of u using Algorithm 5 with constant €
+
+7: Let Guy be the probability that Algorithm 5 samples v given u as input
+
+8: Similarly define and compute ¢,.,
+10: Add the weighted edge ({u, v}, wu) to the graph G’
+11: end for
+12: Compute an ¢/2 spectral sparsifier G” of graph G’ using (Batson et al., 2013)
+13: return G”
+
+Given a set X, |X| = n, anda kernel k : X x X > Rt, we describe how to construct a spectral
+sparsifier for the weighted complete graph on X where weight of the edge {2;,2;} is given by
+Definition D.1 (Graph Laplacian). Given a weighted graph G = (V,E,w), the Laplacian of G,
+denoted by Lg = D — A, where A is the adjacency matrix of G with A;,; = w({i, j}) and D is a
+diagonal matrix such that for alli € [n], Di,i = Vij Ai,j-
+
+Theorem D.1 (Spectral Sparsification of Kernel Density Graphs). Given a dataset X of n points in
+R¢, and a kernelk : X x X 4 Rt, letG = (X, (3), w) be the weighted complete graph on X
+with the weights w({x;,xj}) = k(a;, aj). Further, for all x;,7; € X, let k(x;,x;) > T, for some
+7 € (0,1). Let Lg be the Laplacian matrix corresponding to the graph G. Then, for any € € (0,1),
+Algorithm 8 outputs a graph G" with only m = O(nlog n/(e?7)) edges, such that with probability
+at least 9/10,
+
+(l-e)Lg x Lq@ xX (l+e)Le.
+
+The algorithm makes O(m/r) KDE queries and requires O(md/t*) post-processing time.
+
+Let Gq be the weighted directed graph obtained by arbitrarily orienting the edges of the graph G
+and let H be an edge-vertex incidence matrix defined as follows : for each e = (x;, 7;) in graph Go,
+
+let Hew, = \/k(#i,v;) and Hew, = —y/k(ai, xj). Note that H' H = Lg. Our idea to construct
+
+22
+Published as a conference paper at ICLR 2023
+
+spectral sparsifier is to compute a sampling-and-reweighting matrix 5S, i.e., a matrix that has at most
+one nonzero entry in each row, that with probability > 9/10, satisfies
+
+(l-e)Lg =(1-e)H'HXH'S'SH <(1+e)H'H =(1+e)Le.
+
+The edges sampled by S' form the edges of the graph G’. We construct this matrix S by sampling
+rows of the matrix H from a distribution close to the distribution that samples a row of H with a
+probability proportional to its squared norm. We show that this gives a spectral sparsifier by showing
+that such a distribution approximates the “leverage score sampling” distribution.
+
+Definition D.2 (Leverage Scores). Let M be an x d matrix and m; denote the i-th row of M. Then,
+for alli € [nl], 7;, the i-th leverage of M is defined as follows:
+7% =mi(M'M)tm},
+
+where X* is the Moore-Penrose pseudoinverse for a matrix X.
+
+We introduce the following intermediate lemmas. We begin by recalling that sampling edges propor-
+tional to leverage scores (effective resistances on a graph) suffices to obtain spectral sparsification
+(Spielman & Srivastava, 2011; Woodruff, 2014).
+
+Lemma D.2 (Leverage Score Sampling implies Sparsification). Given an n x d matrix M and
+e € (0,1), for alli € [t], let 7; be the i-th leverage score of M. Let p = {pi,p2,.--,Pn} bea
+distribution over the rows of M such that p, = Ti/ > 7;. Further, for some @ € (0,1), let
+
+JE[n]
+DP = {P1, bo, ---, Pn} be a distribution such that p; > dp; and lett = O (43). Let S € R'*"
+
+be a random matrix where for all j € {t], the j-th row is independently chosen as (1/\/tpi)e; with
+probability p;. Then, with probability at least 99/100,
+
+(l-e)M'M=<M'S'SM <(1+e)M'M.
+
+Next, we show that the matrix H is well-conditioned, in fact the condition number is independent of
+the dimension and only depends on the minimum kernel value between any two points in the dataset.
+This lets us use our edge sampling routines to compute an € spectral sparsifier.
+
+Lemma D.3 (Bounding Condition Number). Let H be the edge-vertex incidence matrix as defined
+and also has the property that all nonzero entries in the matrix have an absolute value of at most 1
+and at least \/T. Let Omax(H) be the maximum singular value of H and omin(H) be the minimum
+nonzero singular value of H. Then Omax(H)/omin(H) < 42/71.
+
+Proof. We use the following standard upper bound on the spectral norm of an arbitrary matrix A to
+upper bound the spectral norm of the matrix H:
+
+I|All2 < | { max }7|4;j| (maui)
+j i
+
+For the matrix H, as each column has at most n nonzero entries and each row has at most 2 non-
+zero entries and from the assumption that all the entries have magnitude at most 1, we obtain that
+||H||2 < V2n. To obtain lower bounds on omin(H), we appeal to a Cheeger-type inequality for
+weighted graphs from (Friedland, 1992; Friedland & Nabben, 2002). First, we note that omin(H) =
+VOmin(H' H) = Vomin(La) where G is the kernel graph that we are considering with each edge
+having a weight of at least 7. Let 0 = Ay < Ay < --- < A, be the eigenvalues of the positive
+semi-definite matrix Lg. Now we have that
+
+Omnin(L@) = Aa(Le) > min(6;/2)e(G)?
+
+where 6; = V4 k(a;,2;) i.e., the weighted degree of vertex x; in graph G' and
+_ eu, 0)
+(@) = o4UCVU|<n/2 [E(O)|
+
+where |E(U)| denotes the sum of weighted degrees of vertices in U and |E(U,U)| denotes the
+total weight of edges with one end point in U and the other outside U. Using the fact that G is a
+
+23
+Published as a conference paper at ICLR 2023
+
+complete graph with each edge having a weight of at least r and at most 1, we obtain |E(U, U)| >
+T|U||U| and |E(U)| < n|U], which implies that ¢(G) > mingzucv,ju|<n/2T|U|/n = 7/2. We
+also similarly have that min; 6; > (nm — 1), which overall implies that A2(L¢) > nr*/16 and that
+Omin(H) > Jnr! >/4. Thus, we obtain that omax(H)/omin(H) < 4V2/r!°.
+
+We are now ready to complete the proof of our main theorem:
+
+Proof of Theorem D.1. Let q = {q1,42,---5 +12) } be a distribution over the rows of H such that for
+
+le «ld k(xi,wj)
+laze ata gry BCE By)?
+
+all edges e = {i,j}, qe >c for a fixed universal constant c.
+
+Next, we show that this distribution is O(1/«?) approximation to the leverage score distribution for
+H.Let H = UXV' be the “thin” singular value decomposition of H and therefore all the diagonal
+entries of ¥ are nonzero. By definition 7; = ||U;.{|3. We have
+
+[hill = Wn 2V 3 = [Ui Zll3
+
+where the equality follows from the afact that V' has orthonormal rows. Now, ||Ui« ||3
+Vix |2o2 5, and ||UixD|3 < [Vix |[3o: Therefore, for all i € (5), defining & = Omin/Omax:
+we have
+Ti Tiel Wall /omnax 1 halle
+DTH Ly Will ~ Uy Mall / ein 8? EE
+nlogn
+
+Then, we invoke Lemma D.2 with ¢ = (1/k?) and conclude that sampling t = O ( Sigz ) rows
+
+Onin Cina
+
+of H results in a sparse graph G’ with corresponding Laplacian Lc such that with probability at
+least 99/100,
+(1 -—e/2)Lq x Le X (1 +¢/2)Le.
+
+Further, by Lemma D.3, we can conclude k? < 32/7? and thus sampling t = O (2284) edges
+suffices.
+
+We do not use Algorithm 6 to sample random edges from the perfect distribution to implement
+spectral sparsification as we cannot compute the exact sampling probability of the edge that is
+sampled. So, we first use Algorithm 4 with constant ¢ (say 1/2) to sample a vertex u and Algo-
+rithm 5 with constant € (say 1/2) to sample a neighbor v of u. Note that Algorithms 4 and Algo-
+rithms 5 can be modified to also return the probabilities p,, and @,. with which the vertex i and
+the neighbor j of 7 are sampled. We can further query the algorithms to return p,, and g,,. Now,
+uv} = PuGou + Podue is the probability with which this sampling process samples the edge {u, v}
+
+and we have that puguu + Poguv = CT
+
+istj)
+tral sparsification as described above. ‘AS already seen (Theorem C.5), to compute vertex sampling
+distribution p, we use n KDE queries and for each neighbor sampling step, we use O(log n) KDE
+queries. Thus, we overall use O(n log? n/(e?7*)) constant approximate KDE queries to obtain an ¢
+spectral sparsifier.
+
+and we use this distribution g to implement spec-
+
+We can further compute another graph G” with only O(n/e?) edges by computing an ¢/2 spectral
+sparsifier for G’ using the deterministic spectral sparsification algorithm of (Batson et al., 2013).
+Conditioning on the graph G’ being an ¢ spectral sparsifier of G, the graph G” will then be an €
+sparsifier for G'. This procedure doesn’t require any KDE queries and solely operates on the weighted
+graph G’.
+
+Hardness for spectral sparsification. We observe that we can use the lower bound from Alman
+et. al. to establish hardness in terms of 7 from Parameterization 1.1. The lower bound we obtain is
+as follows:
+
+Theorem D.4 (Lower Bound for Spectral Sparsification under Parameterization 1.1). Let k be the
+Gaussian kernel and let X be dataset such that min, ycx k(x,y) = T, for some 1 > 7 > 0. Then,
+any algorithm that with probability 9/10 outputs an O(1)-approximate spectral sparsifier for the
+
+24
+Published as a conference paper at ICLR 2023
+
+kernel graph associated with X, with O(n?—°) edges, where 5 < 0.01 is a fixed universal constant,
+
+requires Q. (n : 2ioa(i/7)?*) time, assuming the strong exponential time hypothesis.
+
+First, we begin with the definition of a multiplicatively-Lipschitz function:
+
+Definition D.3 (Multiplicatively-Lipschitz Kernels). A kernel k over a set X is (c,L
+multiplicatively Lipschitz if for any p € (1/c,¢), and for any x,y € X, c~"k(x,y) < k(px, py)
+
+)-
+<
+
+We will require the following theorem showing hardness for sparsification when the kernel function
+is not multiplicatively-Lipschitz:
+
+Theorem D.5 (Theorem 8.3 (Alman et al., 2020)). Let k be a function and X be a dataset such that
+k is not (c, L)-multiplicatively-Lipschitz on X for some L > 1 and c = 1 + 2log (10 gee *) /L.
+Then, there is no algorithm that returns a sparsifier of the kernel graph associated with X with
+O(n?-°) edges, where 6 < 0.01 is a fixed universal constant, in less than O (n : 2H) time,
+
+assuming the strong exponential time hypothesis.
+
+Proof of Theorem D.4 . First, we show that for any c > 1, if L < log(1/7)(c—1), then the Gaussian
+kernel k is not (c, L)-multiplicatively Lipschitz. Let z = ||x — yllo and let f(z) = e~*. Observe, it
+
+suffices to show that there exists a z such that f(cz) < c~" f(z). Let z be such that f(z) = e* =
+min, k(a,y) = 7, ie. z = log(1/r). Then,
+
+F(clog(1/r)) = e~e 8/7),
+and for L < log(1/7)(c — 1)
+c-¥ f(log(1/r)) > eee /),
+
+Then, applying Theorem D.5 with c = 1+ Je it suffices to conclude k is not (c, L)-multiplicatively
+
+Lipschitz when L < log?/?(1/r), which concludes the proof.
+
+D.1.1_ Solving Laplacian Systems Approximately
+
+We describe how to approximately solve the Laplacian system Lga = b using the spectral sparsifier
+Lq:. First, we note the following theorem that states the running time and approximation guarantees
+of fast Laplacian solvers.
+
+Theorem D.6 ((Koutis et al., 2011), (Spielman & Teng, 2004)). There is an algorithm that takes an
+input a graph Laplacian L of a graph with m weighted edges, a vector b, and an error parameter a
+and returns x such that with probability at least 99/100,
+
+|v — L*b||z < al|L* Ox,
+where ||z||, = Vx! La. The algorithm runs in time O(mlog(1/a)).
+
+We have the following theorem that bounds the difference between solutions for the exact Laplacian
+system and the spectral sparsifier Laplacian.
+
+Theorem D.7. Let Lg be the Laplacian of a connected graph G on n vertices and let Lq be the
+Laplacian of an €-spectral sparsifier G' of graph G i.e.,
+
+(l-e)Le@ X Lar X (1+ 4)Le,
+
+for € < cfor a small enough constant c. Then, for any vector b with 1" b = 0, |L&b — Lo \re <
+
+2Ve|LEbllec-
+
+Proof. Note that for <« < 1, the graph G’ also has to be connected and therefore the only eigen
+vectors corresponding to eigen value 0 of the matrices Lg and Lq are of the form a- 1 fora 4 0
+
+25
+Published as a conference paper at ICLR 2023
+
+and hence columns (and rows) of Lg span all vectors orthogonal to 1. Therefore Lele = LéLe =
+I - (1/n)11". Now,
+
+Leb — Le bling = 0" (LG — LG )La( Lg — Lg, )b
+=b' LELGLEb—b' LE Le Ll gb — b' LE, LeLgb + b' LE, Le Lib
+1
+<b’ Lgb-b'LE,b—b' LE b+ poe Lib
+
+where in the last inequality, we used Lg. Lb = 1 and that for any vector v, vl Lqv< seul Le.
+As the null spaces of both Lg and La are given by {al |a € R}, we also obtain that
+
+(l-e)Lg = L$, = (1+e)Lh
+using which we further obtain that
+
+2 2e(1
+|Leb— Lalla, < (= - 2) OLE b< 20+ ST rap < de||LE IL.
+
+Thus, Lb — Le, bln, S$ 2Ve|LGbl|n.-
+
+Therefore, if x is a vector such that ||¢—Lg/bl|z,, < al|L,b||x,, obtained using the fast Laplacian
+solver, then
+
+\|v — LEo|i7., = lle — L&b+ Leb — Lebllig
+S Ale — LE dig + LGb — LEb|ii.,)
+
+2
+<
+~ l-e
+
+lle — Le DZ, + AellLGbIl2..
+
+Here we used the above theorem and the fact that Lg = (1/(1 — €)) La. Now, ||a — LE Pli <
+a? ||LEO 7, and LE b||7_,, =o LE La Lb = oT Lb,b < (L+e)bT Lab < (1+ e)||LeallZ,,
+which finally implies that
+
+: 2(1+<)?
+le re0lz,, < (AEP o2 + te) cgi.
+Thus, using a € spectral sparsifier G’ with m edges, we can in time O(mlog(1/e)) can obtain a
+
+vector x such that ||a — LEb||z, < CVél|LGb||x, for a large enough constant C.
+
+D.2. Low-rank Approximation of the Kernel Matrix
+
+We derive algorithms for low-rank approximations of the kernel matrix via KDE queries. We present
+a algorithm for additive error approximation and compare to prior work for relative error approxi-
+mation.
+
+We first recall the following two theorems. Let A;,, denote the ith row of a matrix A.
+
+Theorem D.8 ((Frieze et al., 2004)). Let A € R"*™ be any matrix. Let S be a sample of O(k/e)
+rows according to a probability distribution (p1,...,Pn) that satisfies p; > Q(1) - \|Ai,«{|3/|| Al
+for every 1 <i <n. Then, in time O(mk/e - poly(k,1/e)), we can compute from S' a matrix
+U € R**"™, that with probability at least 0.99 satisfies
+
+|A — AUTU]|@ < ||A ~ Aall@ + €l|Allz.
+
+Theorem D.9 ((Chen & Price, 2017), also see (Indyk et al., 2019)). There is a randomized algorithm
+that given matrices A € R"*™ and U € R**™, reads only O(k/e) columns of A, runs in time
+O(mk) + poly(k, 1/e), and returns V € R"** that with probability 0.99 satisfies
+
+A- 2<(1 in ||A— X32.
+l| VU|lp < (+e) min | |) Wl
+
+26
+Published as a conference paper at ICLR 2023
+
+Therefore to compute the low rank approximation, we just need sample from the distribution on rows
+required by Theorem D.8. We reduce this question to evaluating KDE queries as follows: If K is
+the kernel matrix, each row of KX is the weight of the edges of the corresponding vertex. Therefore,
+each p; in the distribution (pi,...,pn) is the sum of edge weights squared for vertex «;. From
+vertex queries (Algorithm 4), we know that we can get the degree of each vertex, which is the sum
+of edge weights. We can extend Algorithm 4 to sample from the sum of squared edge weights of
+each vertex as follows. Consider a kernel k such that there exists an absolute constant c that satisfies
+k(x, y)? = k(ca, cy) for all x,y. Such a c exists for the most popular kernels such as the Laplacian,
+exponential, and Gaussian kernels for which c = 2,2, and 4 respectively. Thus give our dataset X,
+we simply construct KDE queries for the dataset X’ := cX. Then by sampling the degrees of the
+vertices associated with the kernel graph K’ of X’, we can sample from the distribution required by
+Theorem D.8 by invoking Algorithm 4 on the dataset X’. In particular, using n KDE queries for X’,
+we can get row norm squared values for all rows of our original kernel matrix A’. We can then sample
+the rows according to Theorem D.8 and fully construct the rows that are sampled. Altogether, this
+takes n KDE queries and O(nk/e) kernel function evaluations to construct a rank k approximation
+of K; see Algorithm 9.
+
+Corollary D.10. Given a dataset X of size n, there exists an algorithm that outputs a rank k matrix
+B such that .
+
+| — Bll < |K ~ Kelli + || A>
+
+with probability 99/100, where K is a kernel matrix associated with X based on a Laplacian,
+exponential, or Gaussian kernel, and K}, is the optimal rank-k approximation of K. It uses n KDE
+queries and O(nk/e - poly(k, 1/e) + nkd/e) post-processing time.
+
+We remark that for the application presented in this subsection, we can we can replace 1.1. Indeed,
+since we only estimate row sums, we only require that the value of a KDE query is at least 7, that
+is, the average value Fal Deex k(x,y) = 7 for a query y. Note that via Cauchy Schwartz, this
+automatically implies a lower bound for the average squared sum:
+
+2
+ra So h(a. y)? > inp (= k(x, ») >,
+
+wTEX TEX
+
+Algorithm 9 Additive-error Low-rank Approximation
+
+Let c be the constant such that k(x, y)? = k(ca, cy) for all inputs x, y
+fori=1toi=ndo
+Compute the value p; = Yar k(ca;, cx;) using KDE queries for the dataset cX
+end for
+Sample and construct O(k/<) rows of K according to probability proportional to {p;}"_1
+Compute U from the sample, using Theorem D.8
+Compute V from the sample, using Theorem D.9
+return Return V,U
+
+D.3 Approximating the Spectrum in EMD
+
+In this subsection, we obtain a sublinear time algorithm to approximate the spectrum of the nor-
+malized Laplacian associated with the graph whose adjacency matrix is given by the kernel matrix
+K.
+
+The eigenvalues of the Laplacian capture fundamental combinatorial properties of the graph such as
+community structures at varying scales. See the works (Lee et al., 2012; Louis et al., 2012; Kwok
+et al., 2013; Czumaj et al., 2015; Gluch et al., 2021), which show that the jth eigenvalue of the
+Laplacian informs us if the graph can be partitioned into j distinct clusters. However, computing
+a large number of eigenvalues of the Laplacian may not be computationally feasible. Thus, it is
+desirable to obtain a succinct summary of all eigenvalues, i.e. the spectrum.
+
+Additionally, models of random graphs that aim to describe social or biological networks often
+times have closed form descriptions of the spectrum for graphs drawn from the model. Borrowing
+
+27
+Published as a conference paper at ICLR 2023
+
+an example from (Cohen-Steiner et al., 2018), “if the spectrum of random power-law graphs does not
+closely resemble the spectrum of the Twitter graph, it suggests that a random power-law graph might
+be a poor model for the Twitter graph.” Thus, another application of computing an approximation of
+the spectrum of eigenvalues is to test the applicability of generative graph models.
+
+Our notion of approximation deals with the Earth mover (EMD) distance.
+
+Definition D.4 (Earth Mover Distance). Given two multi-sets of n points in R4, denoted by A and
+B, the earth-mover distance between A and B is defined as the minimum cost of a perfect matching
+between the two sets, i.e.
+
+EMD(A, B) = oun, la —x(a)|Io, (D.1)
+
+where 7 ranges over all one-to-one mappings.
+
+We can now invoke the algorithm ApproxSpectralMoment of (Cohen-Steiner et al., 2018).
+The algorithm first selects uniformly random vertices of a weighted graph A. It then performs a
+random walk of a specified length @ starting from the chosen vertex and then counts the number
+of times the walk returns back to the original vertex. Now Theorem C.7 allows us to perform one
+step of a random walk using O(log n) KDE queries. Note that we perform an additional OL /T) of
+rejection sampling in Algorithm 5 to perfectly sample from the true neighbor distribution. Thus we
+immediately have the following guarantee:
+
+Theorem D.11 (Corollary of Theorem | in (Cohen-Steiner et al., 2018) and Theorem C.7). Given
+an x nkernel matrix K and accuracy parameter € € (0,1), let G be the corresponding weighted
+graph, and let Lg = I — D-!KD7~! be the normalized Laplacian, where Dj, = ar Kj,;. Let
+Ay > Ag... > An be the eigenvalues of Lg and let X be the resulting vector. Then, there exists an
+algorithm that uses O (exp (1/e?) /T) KDE queries and exp (1/e?) - d/T post-processing time and
+
+outputs a vector X such that with probability 99/100,
+EMD (A,A) <e.
+
+We remark that the bound of exp (1 /<*) is independent of n, which is the size of the dataset.
+
+D.4_ ‘First Eigenvalue and Eigenvector Approximation
+
+Our goal is to approximate the top eigenvalue of the kernel matrix and find a vector witnessing this
+approximation. Our overall algorithm can be split into two steps: first sample a random principal
+submatrix of the kernel matrix. Under the condition that each row of the n x n kernel matrix A
+satisfies that it’s sum is at least n7, we can easily show that it must have a large first eigenvalue and
+thus prior works on sampling bounds automatically imply the first eigenvalue of the sampled matrix
+approximates that of A’. The next step is to use a ‘noisy’ power method of (Backurs et al., 2021) on
+the sampled submatrix. We note that this step employs a KDE data-structure initialized only on the
+sampled indices of A’. The algorithm and details follow.
+
+Algorithm 10 First Eigenvalue and Eigenvector Approximation
+
+Require: Input dataset X C R¢ of size |X| = n, precision e > 0
+1: t © O(1/(e?7?)
+2: S < random subset of [n] of size t
+3: Ks < principal submatrix of K on indices in S {Just for notation; we do not initializing K or
+5: Return the eigenvalue and eigenvector found by Algorithm 1 of (Backurs et al., 2021) (Kernel
+Noisy Power Method) on Ks.
+
+We remark that the eigenvector returned by Algorithm 10 will be a sparse vector supported only on
+the coordinates in S.
+
+28
+Published as a conference paper at ICLR 2023
+
+We first state the necessary auxiliary statements needed to prove the guarantees of Algorithm 10.
+
+Lemma D.12. If each row of K satisfies that its sum is at least nt for parameter T € (0,1), then
+the largest eigenvalue of IX, denoted as 4, satisfies \, > nt.
+
+Proof. This follows from looking at the quadratic form 1” K1 where 1 is the vector with all entries
+equal to 1:
+
+17K _ nr
+7 2S NT.
+V1 n
+
+Mi =
+
+We now state the guarantees of Algorithm 1 in (Backurs et al., 2021).
+
+Theorem D.13 ((Backurs et al., 2021)). Suppose the kernel function for am x m kernel matrix K
+has a KDE data structure with query time d/(e?7?) (see Table 1). Then Algorithm 1 of (Backurs
+
+et al., 2021) returns X such that \ > (1 — €)Ai (KX) in time O (se)
+
+Finally, we need the following result on eigenvalues of sampled PSD matrices, proven in (Bhat-
+tacharjee et al., 2021).
+
+Lemma D.14 ((Bhattacharjee et al., 2021)). Let A € R"*” be PSD with ||Al|,, < 1. Let S C [n]
+be a random subset of size t and let Agy.s be the submatrix restricted to columns and rows in S and
+
+scaled by n/s. Then, for alli € {|S|], Xi (Asxs) = Aui(A) wi
+
+We are now ready to prove the guarantees of Algorithm 10.
+
+Theorem D.15. Given an x n kernel matrix K admitting a KDE data-structure with query time
+d/(e?r”), Algorithm 10 returns X such that \ > (1 — €)A1(K) in total time
+
+. dlog(d/e) d [1yr
+min (o( 4574 10 2946p 72+2p log ar :
+
+Remark D.1. Two remarks are in order. First we recall that the runtime of (Backurs et al., 2021)
+has a n!+? factor while our bound has no dependence on n and is thus a truly sublinear runtime.
+Second, if we skip the Kernel Noisy Power method step and directly initialize and calculate the top
+eigenvalue of A’g (using the standard gap independent power method of (Musco & Musco, 2015)),
+we would get a runtime of O(d/(e*°r*)) which has a polynomially better ¢ dependence but a worse
+7 dependence than the guarantees of Algorithm 10.
+
+Proof of Theorem D.15. We first prove the approximation guarantee. By our setting of t and using
+Lemma D.14, we see that the additive error in approximating the first eigenvalue of K by that of K
+is at most
+
+n
+
+—= <etrn<ed1(K),
+
+Aix <edi(k)
+
+and thus M(K) > (1 —)Ai(K). Then by the guarantees of Theorem D.13, it follows that we find
+a 1 — multiplicative approximation to \; (/¢) and thus a 1 — O(<) multiplicative approximation to
+that of A, (I).
+
+We now prove the runtime bound. It easily follows from plugging in m = O(1/(e?7?)) in Theorem
+D.13.
+
+E_ Graph Applications
+
+In this section, we present our graph applications, including local clustering, spectral clustering,
+arboricity estimation, and estimating the total weight of triangles.
+
+29
+Published as a conference paper at ICLR 2023
+
+E.1 Local Clustering
+
+Algorithm 11 Local k-Clustering
+
+Require: Vertices u, w, random walk length t
+1: Fora given u, let p!, be the endpoint distribution of a random walk of length ¢ starting at v
+2: if £2 distribution tester outputs ||p!, — pt, ||2 < 1/(7n) then
+3: return uw, w are in the same cluster
+4: end if
+5: return wu, w are in different clusters
+
+We give a local clustering algorithm on graphs. The advantage of this method is that it is /ocal as it
+allows us to cluster one vertex at a time. This is especially useful in the setting of local clustering
+where one might not wish to classify all vertices at once or only a small subset of vertices are of
+interest.
+
+We now present a definition for a clusterable graph that has been an extremely popular model def-
+inition in the property testing and sublinear algorithms community (see (Kale & Seshadhri, 2008;
+Czumaj & Sohler, 2010; Goldreich & Ron, 2011; Czumaj et al., 2015; Chiplunkar et al., 2018; Dey
+et al., 2019; Gluch et al., 2021) and the references within).
+
+First, we need to define the notion of conductance.
+
+Definition E.1 (Conductance). Let G = (V, E,w) be a weighted graph. The conductance of a set
+S CV is defined as
+
+, w(S,S°)
+
+éc(S) = ——
+
+a(S) min(w($), w(S*))
+
+where w(S,S°) denotes the sum of edge weights crossing the cut (S,S°) and w(S) denotes the
+sum of (weighted) degrees of vertices in S. The conductance of the graph G is then the minimum of
+a(S) over all sets S:
+
+$(G) = min ga(S).
+
+Definition E.2 (Inner/Outer Conductance). For a subset U C V, we define ¢(G[U]) to be the
+conductance of the induced graph on U. ¢(G[U)) is also referred to as the inner conductance of U.
+Conversely, 6g(U) is refereed to as the outer conductance of U.
+
+Definition E.3 (k-clusterable Graph). A graph G is (k, bin, Gout)-clusterable if the following holds:
+There exists a partition of the vertex set into h < k parts V = Uy<i<nV; such that (GIVi]) > din
+and $q(Vi) S Gout:
+
+Definition E.3 captures the intuition that one can partition the graph into h < k pieces where each
+piece has a strong cluster structure (captured by @;,,) and distinct pieces are separated by sparse cuts
+(captured by @ou1). Note that we are interested in the regime where @ox1 is smaller than ¢;,,. We will
+also assume that each |V;| > n/poly(k) where we allow for an arbitrary polynomial dependence
+on k. This means that each cluster size is not too small.
+
+Since we are interested in clustering, through this section, we will assume our kernel graph Kx is
+k-clusterable according to Definition E.3 but we do not know what the partitions are.
+
+The main algorithmic result of this section is that given a k-clusterable kernel graph and two vertices
+u and w that are in parts V; and V2 respectively of the graph (as defined in Definition E.3), we can
+efficiently test if Vi = V2 or Vj # V2. That is, we can efficiently test if wu and w belong to the same
+or distinct clusters. The underlying idea behind the algorithm is that if wu and w belong to the same
+cluster, then random walks starting from these vertices will rapidly mix inside the corresponding
+cluster. Therefore, random walks in distinct clusters will be substantially different and can be de-
+tected using distribution testing. Our algorithm is given in Algorithm 11. The flavor of the algorithm
+presented is quite standard in property testing literature, see (Czumaj et al., 2015) and (Peng, 2020).
+
+The ¢ distribution tester we need is a standard result in distribution testing with the following
+guarantees.
+
+30
+Published as a conference paper at ICLR 2023
+
+Theorem E.1 (Theorem 1.2 in (Chan et al., 2014)). Let 6,€ > 0 and let p,q be two discrete distri-
+butions over a set of size n with b > max{||p||3, ||q||3}. Let r > cVblog(1/5)/é for an appropriate
+constant c. There exists £2 distribution tester that takes as input r samples from each distribution
+p,q and accepts the distributions if ||p — q\|3. < € and rejects the distributions if \|p — q\|3. > 4€ with
+probability at least 1 — 6. The running time of the tester is linear in its sample size.
+
+We now prove the correctness of Algorithm 11. We note that many arguments from prior works are
+re-derived in the proof below, rather than stating them in a black box manner, for completeness since
+our setting is of weighted graphs and the usual setting in literature is unweighted or regular graphs.
+We first need the following lemmas. Recall that the random walk matrix of an arbitrary weighted
+graph is given by M = AD~! where A is the adjacency matrix and D is the diagonal degree matrix.
+The normalized Laplacian matrix L is defined as L = I — D~'/? AD~1/?.
+
+Our first result is that vertices in the same well connected cluster of G have a quantitative relationship
+captured by the eigenvectors of L. This is in similar spirit to Lemma 5.3 of (Czumaj et al., 2015)
+but we must show it holds for weighted graphs arising from kernel matrices whereas (Czumaj et al.,
+2015) is interested in bounded degree unweighted graphs.
+
+Lemma E.2. Let v; be the ith eigenvector of the normalized Laplacian of the kernel graph K and
+let C be any subset such that ¢(K[C]) > din. Then for any 1 <i < h, the following holds:
+
+3 (2 _ “ie ) < _Poutl
+
+Proof. By Lemma 5.2 in (Czumaj et al., 2015) and Theorem 1.2 in (Lee et al., 2012), we have that
+2, ht S Angi and A; < 2our for any 1 < i < h. Now by the variational principle for eigenvalues
+(Chung & Graham, 1997), we have
+
+2
+ri vi(w) - vi(v) ) w(u,v) < 2Wdout-
+» (343 Vu(v) (uv) S26
+
+Now let H = K[C]. From (Chung & Graham, 1997) and our assumptions on C, we have that
+
+2
+2-Doune ( vu) i) ay(u, v)
+(ween \ Tuc 7 Jute) ,
+vow) > Ag(H) >
+rit) _ vil)
+uvevy (ae _ =a) diz(u)dx(v)
+
+where volj;;(Vi) denotes the sum of the degrees of vertices in H and dy(-) denotes the degree in
+HH. Note the last step is due to Cheeger’s inequality. Combining the preceding result with our earlier
+derivation, we have
+
+2
+vol zz (Vir) - on
+
+y (<4 _ Viv) ) < > (<4 _ “) < 2Wbonr-
+This implies that
+|CPr? > (“2 ~ ee) )< »~ (“4 - 4) ) aan
+(uuyeVin w(u) w(v) (uoyeVin Jw(u) w(v)
+Pout Vly (Vir)
+Gin
+where we have used the fact that all edge weights in K are at least 7. Using the fact that vol x (Viz) <
+|C|n, it follows that
+
+<
+
+(rcv Veta) wry] ~ GnfClr?”
+
+as desired.
+
+31
+Published as a conference paper at ICLR 2023
+
+The second result states that vertices in the same well-connected cluster have similar random walk
+distributions. This is again the analogue of Lemma 4.2 in (Czumaj et al., 2015) but we must show it
+holds for weighted graphs.
+
+Lemma E.3. Let 0 < 8 < 1/2. ie K is (k, din, Gout)-clusterable, and C C V is any
+subset such that |C| > n/ poly(k) and ¢(K[C]) > din. There exists a constant c = c(8) > 0 and
+
+c = '(8,k) such that for any t > clog n/¢?,,, Pout SC ' b2.,, there exists a subset CC C satisfying
+vol(C) > (1 — B)vol(C) such that for any u,v € C, the following holds:
+
+L
+Ilr. — Pilla < in
+
+Proof. Let V1,--+ ,Vn denote the eigenvectors of L with eigenvalues \;,--- , An, in non-decreasing
+order. We know that the eigenvalues of M/ are given by 1 — A; with corresponding eigenvalues
+y; = D‘/2v;. The vector pt, is the vector 1,, with a one value in the uth coordinate applied to M*.
+
+Write
+l= Ss aYyi = Ss aj D~'/y;.
+i i
+
+Taking the innerproduct of 1,, with D~!/2y, tells us that a; = v;(u)/./w(u). Thus,
+
+-¥ aan! “LF oe oA
+= DAS (a vi(u) __vil) Janae
+
+w(u) w(v)
+
+This means that
+
+Ilpt. — Pille < DY”? ||
+
+= Vv. vi(u) _ vilv 2 _ t
+
+Since the v;,’s are orthogonal, we know that
+
+2
+
+view)___ vi) ) af - > vetu) vil) Yq ya
+Vw(u) ~ Jw(e) . J \ Vwlu) Var) ue
+Now the rest of the proof follows from Lemma 4.2 in (Czumaj et al., 2015). In particular, it tells
+us that in the above summation, each of the terms for 1 < i < h can be bounded by < aCe
+whereas the rest of the sum can be bounded by 1/ poly(n) for sufficiently large poly(n) by adjusting
+the constant in front of t. Our choice for |C| > n/ poly(k) imply that the overall sum is bounded
+
+by < fox poe Since ||D*/?||? < n, and dour < ¢/2,,, we have that ||p!, — pi} < 1/(8n), as
+
+desired.
+
+Our next goal is to show that vertices from different well-connected partitions have very different
+random walk endpoint distributions. The argument we borrow is from (Czumaj & Sohler, 2010).
+
+Lemma E.4. Let G be a (k, din, bout)-clusterable graph with parts V = Ui<i<nVi. There exists a
+constant c > 0 such that if t- bout < cé, then there exists a subset V{ C V, satisfying vol(V{) > (1—
+€)vol(V;) such that a t-step random walk from any vertex in V{ does not leave V; with probability
+l-e.
+
+Proof. We first bound the probability that the random walks always stay in their respective clusters.
+Consider a fixed partition Vj; the same arguments apply for any partition. Let G’ be the graph with
+the same vertex set as KC but with only the following edges: edges among vertices in V; and edges
+from vertices in V; to V \ Vj. Consider a random walk on G’ of length ¢ with the initial vertex u’
+chosen from the stationary distribution of G’, i.e., the distribution that chooses each vertex in G’ with
+probability proportional to its weight. Let Y; denote the indicator random variable for the event that
+
+32
+Published as a conference paper at ICLR 2023
+
+the ith vertex of the random walk is in V \ Vj. Since we are simulating the stationary distribution,
+
+we have that
+w(Y,V\N)
+w(G’)
+where w is the weight of edges in the original graph K. By linearity of expectations, the number of
+vertices that land in V \ V; is
+
+Prl¥, = lj =
+
+E
+
+: _ w(Y,V\N) ;
+yy =(t+ \— HG) S toout
+
+due to our requirement of @o.,. Therefore by Markov’s inequality, the probability that any vertex in
+V \ V, is ever visited is < tbout-
+
+We now move our random walk back to the original graph kK’. The preceding calculation implies
+that the probability that an ¢ step random walk in J starting at a vertex chosen at random from
+V, according to the stationary distribution will remain in V, with probability at least 1 — 5,,t. If
+gout < €/t, then we know that the random walk stays in V; with probability at least 1 — O(e) so
+there must be a set of vertices V’ C Vj of at least 1 — O(c) fraction of the total volume of V; such
+that a random walk starting from a vertex in V’ remains in Vj with probability at least 1 — O(e).
+
+We can now prove the correctness of Algorithm 11.
+
+Theorem E.5. Let K be a (k, din, Pout)-clusterable kernel graph with parts V = Uy<i<nVi. Let
+U,W be one of (not necessarily distinct) partitions V;. Let u,w be randomly chosen vertices in
+partitions U and W with probability proportional to their degrees. There exists c = c(e,k) such
+that if out < c¢2,,/logn, then with probability at least 1 —¢, if U = W then Algorithm 11 returns
+that u and w are in the same cluster and ifU #4 W, Algorithm 11 returns that u and w are in different
+clusters. The algorithm requires O(,/nk/(ErT) log(1/e)) random walks of length t > clog n/¢?,,.
+
+Proof. We first consider the case that U # W. From Lemma E.4, we know that there are ‘non-
+escaping’ subsets U’ and W’ of U and W respectively such that vertices u,w from U’ and W’
+respectively don’t leave U and W with probability 1 — ¢. Conditioning on u and w being in those
+subsets, we have that with probability 1 — O(e), p!, and pi, will be disjointly supported and thus,
+Ili. — PIS = lulld + llpolla = 2/n.
+
+Now if U = W, we know from Lemma E.3 that ||p', — p!||3_ < 1/(8n) if we condition on u and v
+coming from the large volume subset of U.
+
+Finally, we need one last ingredient. Lemma 4.3 in (Czumaj et al., 2015) readily implies that there
+exists a V’ C V satisfying vol(V’) > (1—e)vol(V) such that ||p/, ||} < 2k/(er?n). Now we can set
+€ = 1/(7n) and b = 2k/(er?n) in Theorem E.1, which tells us that r = O(,/nk/(er) log(1/e))
+samples of the distributions p!, and p‘, suffice to distinguish the cases ||p!, — p!||3 > 2/n or ||p!, —
+pi|l$ < 1/(8n), ie., r samples allow us to determine if U = W or U # W, conditioned on a
+1 — O(e) probability event.
+
+It is straightforward to translate the requirements of Theorem E.5 in terms of the number of KDE
+queries required. Note that since we only take random walks of length O(log n/¢?,), we can just
+reduce the total variation distance from the distribution we sample our walks from and the true
+random walk distribution appropriately in Theorem C.7. Alternatively, we can perform rejection
+
+sampling as stated in the proof of Theorem C.5.
+
+Corollary E.6. Algorithm 11 and Theorem E.5 require O(c(k, €)\/nk/é-1/(7!d?,)) KDE queries
+(via calls to Algorithm 7, which performs random walks) as well as the same bound for post-
+processing time.
+
+E.2_ Spectral Clustering
+
+We present applications to spectral clustering. In data science, spectral clustering is often the follow-
+ing clustering procedure: (a) compute k eigenvalues of the Laplacian matrix in order, (b) perform
+k-means clustering on the Laplacian eigenvector embeddings of the vertices.
+
+33
+Published as a conference paper at ICLR 2023
+
+The theory behind spectral clustering relies on the fact that the Lapalacian eigenvectors are effective
+in representing the cluster structure of the underlying graph. We refer the reader to (Von Luxburg,
+2007) and references within for more information. For our application to spectral clustering, we
+show that a spectral sparsifier, for example one computed from the prior sections, also preserves the
+cluster structure of the graph.
+
+Next we define a model of a “weakly clusterable” graph. Intuitively our model says that a graph
+is k-weakly clusterable if its vertex set can be partitioned into k ‘well-connected’ pieces separated
+by sparse cuts in between. Furthermore, this definition captures the notion of a well-defined cluster
+structure without which performing spectral clustering is meaningless. Note that this notion is less
+stringent that the definitions of clusterable graphs commonly used in the property testing literature
+which additionally require each piece to be well-connected internally, see Definition E.3.
+
+Definition E.4 (Weakly clusterable Graph). A graph is (k, bout)-clusterable if the following holds:
+There exists a partition of the vertex set into h < k parts V = Ui<i<nVi such that oa(Vi) < Pout:
+
+We now prove the following result that says spectral sparsification preserves cluster structure ac-
+cording to Definition E.4. We first remark that the spectral sparsifier obtained in the previous section
+is a cut sparsifier as well. Recall that a cut sparsifier is a subgraph that preserves the values across all
+cuts up to relative error 1 + ¢. The implication follows immediately by noting that cuts are induced
+by quadratic forms on the Laplacian matrix using {—1, 1}" vectors.
+
+Theorem E.7. Let G be (k, dout)-clusterable and let G’ be a cut sparsifier for G. Then G' is
+(k, (1 + €)@out)-clusterable.
+
+Proof. Let V; be one of the h < k vertex partitions of G. Consider the conductance of V; defined
+in Definition E.1. The numerator represents the value of a cut separating V; and each term in the
+denominator is the sum of the degrees of single vertices. Both values are appropriate cuts in the
+graph. Since G’ is a cut sparsifier, this implies that both the numerator and denominator are preserved
+up to a 1 + « factor and thus, the entire ratio is also preserved up to a 1 + O(c) factor.
+
+Theorem E.7 implies that the cluster structure of the sparsified graph G’ is approximately identical to
+that of G. Thus, we can be confident that the spectral clustering procedure described at the beginning
+of the section would perform equally as well on G’ as it would have on G. Indeed, we verify this
+empirically in Section 2.
+
+Furthermore, spectral clustering requires us to compute the first k eigenvectors of the Laplacian
+matrix. Since our sparsifier has few edges, we can use Theorem 1 of (Musco & Musco, 2015), which
+says (a variant of) the power method can quickly find good approximations Laplacian eigenvectors
+if the matrix is sparse.
+
+Theorem E.8 (Corollary of Theorem 1 in (Musco & Musco, 2015) and Theorem D.1). Let L be the
+
+Laplacian matrix of the sparsifier computed in Theorem D.1. Let u1,+++ , ux be the first k eigenvec-
+tors of L. Using Theorem 1 of (Musco & Musco, 2015), we can find k vectors v,,:++ , vg in time
+(a) (Sus) such that with probability 99/100,
+
+juy Lu; — vf Luil < X41
+for alli € [kj].
+
+34
+Published as a conference paper at ICLR 2023
+
+E.3 Arboricity Estimation
+
+Algorithm 12 Arboricity Estimation
+
+1: A=maxeercr t ao
+
+m0 (288), Gg
+
+fori = 1toi=mdo _
+Sample an edge e with probability Pe = SEs , where te € [we, 2we]
+Add e to G’ with weight
+
+end for
+return maxycy d(Gi,)
+
+maps
+
+We now apply our algorithmic building blocks to the task of arboricity estimation. Consider a
+weighted graph G = (V,E,w). Let Gy be an induced subgraph of G on the subset of nodes U.
+The density of Gy is defined as
+w(E(Gv))
+
+||
+where w(E(Gv)) is the sum of the edge weights of Gy. The arboricity of G is defined as
+
+d(Gu) :=
+
+The arboricity measures the density of the densest subgraph in a graph. Intuitively, it informs if there
+is a strong cluster structure among some subset of the vertices of G. Therefore, it is an important
+primitive in the analysis of massive graphs with applications ranging from community detection
+in social networks, spam link identification, and many more; see (Lee et al., 2010) for a survey of
+applications and algorithmic results.
+
+Although polynomial time algorithms exist, we are interested in efficiently approximating the value
+of a using the building blocks of Section C. Inspired by the unweighted version of the arboricity
+estimation algorithm from (McGregor et al., 2015), we first prove the following result.
+
+Theorem E.9. Let U’ = argmaxy d(G{,) and let G’ be the output of Algorithm 12. Then with
+probability at least 1 — 1/ poly(n),
+
+(l-e)a < d(Gy) < (I+ e)a
+Algorithm 12 uses m = O(nlogn/(e2r)) KDE queries and O(mn) post-processing time.
+
+Proof. Let U be an arbitrary set of k nodes, let W = )°.<, w(e), and let Wy = W - d(Gy) Since
+G has weight W, then the arboricity a satisfies a > wv so that
+
+> en
+= ale?
+
+Let X; be the random variable qos the contribution of the i-th sample to weight of the edges in
+Gy and observe that E[X;] = d(Gy) so that ELX] = W - d(Gy), for X = S77". Similarly,
+
+™
+
+we have
+1 Ww W -Wu
+2) 2 _ je y
+ELX;] = » Pee * pm » mm —
+e=(u,v),u,v,EU e e=(u,v),u,v,eU "
+Since m = Ona Tenn for an absolute constant C' > 0, then
+ke?a?
+B[X?] < =
+Cmlog* n
+and
+
+m 2.2
+SEX < < keva
+Cmlog?n n
+
+35
+Published as a conference paper at ICLR 2023
+
+We also have X; — E[X;] < 8. Thus by Bernstein’s inequality for sufficiently large C,
+
+= Gmlog?n
+a
+P [a 1 > 2] < nik,
+r |d( W2 sn ;
+
+for d(Gu) < g& and
+
+Ea le
+Pr {|d(@t,) — d(@u)| = FE] < 207%,
+
+for d(Gu) > &-
+Since there are ('') < n* subsets of V with size k, then by a union bound, we have that with
+probability at least 1 — 3n~*, both
+a
+d(Gy) < =
+(a) <4
+for all subsets U with d(Gy) < g and
+(1—e)d(Gy) < d(Gy) < (1+e)d(Gy)
+for all subsets U with d(Gu) > &.
+Hence for a set U* such that d(U*) = a, we have d(Gy+) > (1 —e)a so that d(Gu) > d(Gu-) >
+(1 —e)a, where U' = arg maxycy d(Gy). Thus with high probability, we have that
+
+(l-e)a <d(Gu') < (1+e)a,
+
+as desired.
+
+To estimate the arboricity of the input graph G, it then suffices Theorem E.9 to compute the arboricity
+of the subsampled graph G’ output by Algorithm 12. This can be efficiently achieved by running an
+offline algorithm such as (Charikar, 2000), which requires solving a linear program on m variables,
+where m is the number of edges of the input graph. Thus our subsampling procedure serves as a
+preprocessing step that ultimately significantly improves the overall runtime.
+
+E.4 Computing the Total Weight of Triangles
+
+Algorithm 13 Weighted Triangle Counting
+
+1: Let R C E bea random set of O (Gees) edges
+
+wr
+
+3: Forv €V,9(v) = Va yer W(u, 0)
+4: For (u,v) € E, g(u,v) := min(w(u), w(v))
+5: fori =1toi=sdo
+6: Sample e € R with probability —22__
+
+Deen ge)
+7: Lete = (x,y) with x < y
+8: Sample neighbor z of x with probability “
+9: if (x,y, z) is a triangle assigned to u then
+10: xl
+11: else
+12: xi 0
+13: endif
+14: end for
+15: return py Via Xi
+
+We apply the tools developed in prior section to counting the number of weighted triangles of a
+kernel graph. Counting triangles is a fundamental graph algorithm task that has been explored in
+numerous models and settings, including streaming algorithms, fine-grained complexity, distributed
+
+36
+Published as a conference paper at ICLR 2023
+
+shared-memory and MapReduce to name a few (Seshadhri et al., 2013; Atserias et al., 2008; Bera &
+Chakrabarti, 2017; Kolountzakis et al., 2010; Chen et al., 2022). Applications include discovering
+motifs in protein interaction networks (Milo et al., 2002), understanding social networks (Foucault
+Welles et al., 2010), and evaluating large graph models (Leskovec et al., 2008); see the survey
+(Al Hasan & Dave, 2018) for further information.
+
+We define the weight of a triangle as the product of its edges. This definition is natural since it
+generalizes the case were the edges have integer lengths. In this case, an edge can be thought of as
+multiple parallel edges. The number of triangles on any set of three vertices must account for all
+the parallel edge combinations. The product definition just extends this to the case of arbitrary real
+non-negative weights. This definition has also been used in definitions of clustering-coefficient for
+weighted graphs (Kalna & Higham, 2006; Li et al., 2007; Antoniou & Tsompa, 2008).
+
+Note that there is an alternate definition for the weight of a triangle in weighted graphs, which is just
+the sum of edge weights. In the case of kernel graphs, this is not an interesting definition since we
+can approximately compute the sum of all degrees using n KDE queries and divide by 3 to get an
+accurate approximation.
+
+Definition E.5. Let G = (V,E,w) with w : E — R#° be a weighted graph. Given a triangle
+(x,y,z) C E, we define its weight as
+
+Wxy,z) = W(x, y)- W(y, 2) w(a, 2),
+
+where we abuse notation by defining w(x,y) := w((x,y))-
+
+For this definition, we present the following modified algorithm from (Eden et al., 2017), which
+considers the problem in unweighted graphs in a different model of computing. See Remark B.5 for
+comparison.
+
+3/2
+
+Theorem E.10. There exists an algorithm that makes O (SS | KDE queries and the same
+
+vez
+
+bound for post-processing time and with probability at least 2, outputs a (1 + €)-approximation to
+the total weight wr of the triangles in the kernel graph.
+
+Proof. Given a graph G = (V,£), let |V| = n, |E| = m, Y).¢_ w(e) = wa, T be the number
+of triangle in G, and wr be the sum of the weighted triangles in G, where the weight of a triangle
+(x,y,z) C E, is the product of the weights of its edges
+
+Wx,y,z) = W(x, y)- Wly, 2): w(a, 2).
+
+For a vertex v € V, let w(v) = eee e=(u,v),ueV w(e), so that we have an ordering on the vertex
+
+set V by u ~ v if and only if either w(u) < w(v) or w(u) = w(v) and u appears v in the dictionary
+ordering of the vertices. For each edge e = (u,v), we assign to e all triangle (u,v, w) such that
+u~<v ~<w. Let W, denote the weight of the triangles assigned to e.
+
+Suppose, by way of contradiction, there exists e € E with W. > , fwaw 2. Since each triangle
+can contribute at most w?,,, weight to W-, then more than \/waw~*/? triangles must be assigned
+to e. Then there must be more than wew3/ 2 vertices with weight at least Jwaw?., which
+contradicts the fact that the graph G' has weight wa. Thus, we have that W. < wawl2. for all
+e € E. Moreover, we have that ee gp We = wr So that
+
+wr
+
+Eee [We] = ™
+
+and
+3/2
+WT /WGWmax
+
+Eeen|W?] <
+
+By Chebyshev’s inequality, it suffices to sample a set R with
+
+mYweurle
+
+UG Wma:
+
+|R| =O ~—
+e-wr
+
+37
+Published as a conference paper at ICLR 2023
+
+edges uniformly at random, so that
+
+wT
+
+Pr] S°W, € (1+2)|R|-
+
+e€R
+
+> 0.99.
+
+m
+
+For each vertex v € V, let g(v) = Yoi,.)cm w(u,v) and for each edge e = (u,v), let g(e) =
+min(w(u), w(v)). We write g(R) = }0.<p g(e). Now for each i € || RI], we have
+
+Ww. Wr
+Elxi] = dah) = aR) E[xj] <1.
+
+Hence by Bernstein bounds, there exists a constant C' > 0 such that it suffices to repeat the procedure
+
+& . 12 times to get a (1 + €)-approximation of ay with probability at least 2/3. We have that
+Wr > ¥2 -|R| and Elg(R)] < /wWawintax - |R| so that
+
+9(R) < Im /waule
+Wr wr .
+
+F Omitted Experimental Results
+
+MNIST MNIST
+
+N
+ny
+8
+
+6250
+x
+e
+8150
+<
+
+w 100
+
+Frobenius Error
+Roe Pe EON
+RB &@ & 8
+8 6 8 8 8
+
+cy
+2
+5
+Kt ‘imation
+
+10 20 30 40 50 6 50 160 150-200
+Rank ‘True Normed Squared
+
+(a) Rank versus Error for Low-rank Approximation —_(b) Real vs Approximate Row Norm Squared Values
+
+Glove Glove
+140.0 —— KDE 500
+IS
+137.5 —_— svD §
+135.0 3
+132.5 3
+a
+130.0 2
+127.5 a
+g
+125.0
+122.5
+z 4 6 8 10 @ 50 160 150 200 250 360 350 400
+Rank True Normed Squared
+
+(c) Rank versus Error for Low-rank Approximation (d) Real vs Approximate Row Norm Sqaured Values
+
+Figure 2: Figures for low rank approximation experiments.
+
+Parameter settings. For low-rank approximation datasets, we choose the bandwidth value o ac-
+cording to the choice made in prior experiments, in particular the values given in (Backurs et al.,
+2019). There, o is chosen according to the popular median distance rule; see their experimental sec-
+tion for further information. For our clustering experiments, we pick the value of a, which results in
+spectral clustering (running on the full kernel matrix) successfully clustering the input.
+
+38
+Published as a conference paper at ICLR 2023
+
+Datasets for spectral sparsification and clustering. For spectral sparsification and clustering,
+we use construct two synthetic datasets, which are challenging for other clustering method such as
+k-means clustering”. The first dataset denoted as ‘Nested’ consists of 5,000 points, equally split
+among the origin and a circle of radius 1. The two natural clusters are the points at the origin and
+the points on the circle. Since one cluster is contained in the convex hull of the other, a method
+like k-means clustering will not be able to separate the two clusters, but it is known that spectral
+clustering can. Our second dataset, labeled ‘Rings’, is an even more challenging clustering dataset.
+We consider two tori in three dimensions that pass through the interior hole of each other, i.e., they
+interlock. The ‘small’ radius of each tori is 5 while the ‘large’ radius is 100. Our dataset consists
+of 2500 points uniformly distributed on the two tori; see Figure 3b. Note that our focus is not to
+compare the efficacy of various clustering methods, which is done in other prior works (e.g., see
+footnote 2). Rather, we show that spectral clustering itself can be optimized in terms of runtime,
+space usage, and the number of kernel evaluations performed via our algorithms.
+
+Evaluation metrics for spectral clustering and sparsification. For spectral sparsification and
+clustering, we compare the accuracy of our method to the clustering solution when run on the full
+initialized kernel matrix.
+
+Note that prior works such as (Backurs et al., 2019; 2021) have used use the number of kernel
+evaluations performed (i.e., how many entries of JX are computed) as a measure of computational
+cost. While this is a software and architecture independent basis of comparison, which is unaffected
+by access to specialized libraries or hardware (e.g., SIMD, GPU), it is of interest to go beyond this
+measure. Indeed, we use this measure as well as other important metrics as space usage and runtime
+as points of comparison.
+
+Spectral sparsification and clustering results. Our algorithm consists of running the spectral spar-
+sification algorithm of Theorem D.1 (Algorithm 8) and computing the first two eigenvectors of the
+normalized Laplacian of the resulting sparse graph. We then run k-means clustering on the com-
+puted Laplacian embedding for k = 2. As noted above, we use two datasets that pose challenges for
+traditional clustering methods such as k-means clustering. The Nested dataset is shown in Figure
+3a. We sampled 3 - 10° many edges, which is 2.5% of total edges. Figure 4a shows the Laplacian
+embedding of the sampled graph based on the first two eigenvectors. The colors of the red and blue
+points correspond to their cluster in Figure 3a as identified by running k-means clustering on the
+Laplacian embedding. The orange crosses are the points that the spectral clustering method failed
+to correctly classify. These are only 23 points, which represent a 0.5% of total points. Furthermore,
+Figure 4a shows that the Laplacian embedding of the sampled graph is able to embed the two clus-
+ters into distinct and disjoint regions. Note that the total space savings of the sampled graph over
+storing the entire graph is 41x. In terms of the time taken, the iterative SVD method used to calculate
+the Laplacian eigenvectors took 0.18 seconds on the sparse graph whereas the same method took
+0.81 seconds on the entire graph. This is a 4.5x factor reduction.
+
+We recorded qualitatively similar results for the rings dataset. Figure 3b shows a plot of the dataset.
+We sampled 10° many edges for the approximation, which represents a 3.3% of total edges for form
+the sparse graph. The Laplacian embedding of the sparse graph is shown in Figure 4b. In this case,
+the embedding constructed from the sparse graph was able to separate the two rings into disjoint
+regions perfectly. The time taken for computing the Laplacian eigenvectors for the sparse graph was
+0.08 seconds whereas it took 0.27 seconds for the full dense matrix.
+
+G_ Auxiliary Inequalities
+
+Theorem G.1 (Bernstein’s inequality). Let X1,..., X,, be independent random variables such that
+
+E[X?] < co and X; > 0 for alli € [n]. Let X = Sy, X; and y > 0. Then
+
+Pr [X < E[X] — 9] < exp (s=20x3) ,
+
+>For example, see https: //scikit-learn.org/stable/auto_examples/cluster/plot_
+cluster_comparison.html.
+
+39
+Published as a conference paper at ICLR 2023
+
+Nested Dataset Rings Dataset
+
+10.0)
+
+7.54
+
+5.04
+
+2.54
+
+0.04
+
+-2.54
+
+5.04
+
+-7.54
+
+-10.04
+-10.0 -7.5 -5.0 -25 00 25 50 75 100
+
+(a) (b)
+
+Figure 3: (a) Nested Dataset, (b) Rings Dataset
+
+Nested Dataset Rings Dataset
+5 0.02} . circle Ponts aah faite
+S > Mislabeled Points r: 0.024
+2 0.01) ‘i o
+a 10) xy,
+i §
+§ -0.024 ¥ 0.06 | .
+z @
+§ 0.03] 0.08) Fa
+1st Laplacian Eigenvector
+(a) (b)
+
+Figure 4: Spectral embedding of sparsified graph for (a) Nested dataset and (b) Rings dataset, re-
+spectively.
+
+If X; — E[X;] < A for alli, then for 0? = E[X?] — ELX;]?,
+
+Pr [X > E[X] +9] < ow (sata)
+
+40

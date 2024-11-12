@@ -1,0 +1,7290 @@
+Published as a conference paper at ICLR 2023
+
+BEYOND LIPSCHITZ: SHARP GENERALIZATION AND
+EXCESS RISK BOUNDS FOR FULL-BATCH GD
+
+Konstantinos E. Nikolakakis∗, Farzin Haddadpour, Amin Karbasi1 &Dionysios S. Kalogerias
+Department of Electrical Engineering
+Yale University, Yale University & Google Research1
+{first.last}@yale.edu
+
+ABSTRACT
+
+We provide sharp path-dependent generalization and excess risk guarantees for
+the full-batch Gradient Descent (GD) algorithm on smooth losses (possibly non-
+Lipschitz, possibly nonconvex). At the heart of our analysis is an upper bound on
+the generalization error, which implies that average output stability and a bounded
+expected optimization error at termination lead to generalization. This result
+shows that a small generalization error occurs along the optimization path, and
+allows us to bypass Lipschitz or sub-Gaussian assumptions on the loss prevalent
+in previous works. For nonconvex, convex, and strongly convex losses, we show
+the explicit dependence of the generalization error in terms of the accumulated
+path-dependent optimization error, terminal optimization error, number of samples,
+and number of iterations. For nonconvex smooth losses, we prove that full-batch
+GD efficiently generalizes close to any stationary point at termination, and recovers
+the generalization error guarantees of stochastic algorithms with fewer assumptions.
+For smooth convex losses, we show that the generalization error is tighter than
+existing bounds for SGD (up to one order of error magnitude). Consequently
+the excess risk matches that of SGD for quadratically less iterations. Lastly, for
+strongly convex smooth losses, we show that full-batch GD achieves essentially
+the same excess risk rate as compared with the state of the art on SGD, but with an
+exponentially smaller number of iterations (logarithmic in the dataset size).
+
+1
+
+INTRODUCTION
+
+Gradient based learning (Lecun et al., 1998) is a well established topic with a large body of literature
+on algorithmic generalization and optimization errors. For general smooth convex losses, optimization
+error guarantees have long been well-known (Nesterov, 1998). Similarly, Absil et al. (2005) and Lee
+et al. (2016) have showed convergence of Gradient Descent (GD) to minimizers and local minima for
+smooth nonconvex functions. More recently, Chatterjee (2022), Liu et al. (2022) and Allen-Zhu et al.
+(2019) established global convergence of GD for deep neural networks under appropriate conditions.
+
+Generalization error analysis of stochastic training algorithms has recently gained increased attention.
+Hardt et al. (2016) showed uniform stability final-iterate bounds for vanilla Stochastic Gradient
+Descent (SGD). More recent works have developed alternative generalization error bounds with prob-
+abilistic guarantees (Feldman & Vondrak, 2018; 2019; Madden et al., 2020; Klochkov & Zhivotovskiy,
+2021) and data-dependent variants (Kuzborskij & Lampert, 2018), or under weaker assumptions
+such as strongly quasi-convex (Gower et al., 2019), non-smooth convex (Feldman, 2016; Bassily
+et al., 2020; Lei & Ying, 2020b; Lei et al., 2021a), and pairwise losses (Lei et al., 2021b; 2020).
+In the nonconvex case, Zhou et al. (2021b) provide bounds that involve the on-average variance
+of the stochastic gradients. Generalization performance of other algorithmic variants lately gain
+further attention, including SGD with early momentum (Ramezani-Kebrya et al., 2021), randomized
+coordinate descent (Wang et al., 2021c), look-ahead approaches (Zhou et al., 2021a), noise injection
+methods (Xing et al., 2021), and stochastic gradient Langevin dynamics (Pensia et al., 2018; Mou
+et al., 2018; Li et al., 2020; Negrea et al., 2019; Zhang et al., 2021; Farghly & Rebeschini, 2021;
+Wang et al., 2021a;b).
+
+∗Lead & corresponding author
+
+1
+
+Published as a conference paper at ICLR 2023
+
+Algorithm
+
+GD (this work)
+ηt = 1/2β
+
+SGD
+ηt = 1/
+
+√
+
+T
+
+(Lei & Ying, 2020b)
+
+GD (this work)
+ηt = 1/2β
+
+SGD
+ηt = 1/2β
+(Lei & Ying, 2020b)
+
+GD (this work)
+ηt = 2/(β + γ)
+
+SGD
+ηt = 2/(t + t0)γ
+(Lei & Ying, 2020b)
+
+Excess Risk Upper Bounds: GD vs SGD
+Bound
+Interpolation
+Iterations
+(cid:18) 1
+√
+n
+
+T =
+
+No
+
+√
+
+O
+
+n
+
+(cid:19)
+
+β-Smooth Loss
+
+Convex
+
+Convex
+
+Convex
+
+Convex
+
+(cid:33)
+
+γ-Strongly Convex
+(Objective)
+
+O
+
+(cid:19)
+
+(cid:18) 1
+√
+n
+
+O
+
+(cid:19)
+
+(cid:18) 1
+n
+
+(cid:19)
+
+O
+
+(cid:18) 1
+n
+(cid:32) (cid:112)log(n)
+n
+
+O
+
+(cid:19)
+
+(cid:18) 1
+n
+
+γ-Strongly Convex
+(Objective)
+
+T = n
+
+T = n
+
+T = n
+
+T = Θ(log n)
+
+T = Θ(n)
+
+No
+
+Yes
+
+Yes
+
+No
+
+No
+
+O
+
+Table 1: Comparison of the excess risk bounds for the full-batch GD and SGD algorithms by Lei
+& Ying (2020b, Corollary 5 & Theorem 11). We denote by n the number of samples, T the total
+number of iterations, ηt the step size at time t, and by ϵc ≜ E[RS(W ∗
+
+S )] the interpolation error.
+
+Even though many previous works consider stochastic training algorithms and some even suggest
+that stochasticity may be necessary (Hardt et al., 2016; Charles & Papailiopoulos, 2018) for good
+generalization, recent empirical studies have demonstrated that deterministic algorithms can indeed
+generalize well; see, e.g., (Hoffer et al., 2017; Geiping et al., 2022). In fact, Hoffer et al. (2017)
+showed empirically that for large enough number of iterations full-batch GD generalizes comparably
+to SGD. Similarly, Geiping et al. (2022) experimentally showed that strong generalization behavior is
+still observed in the absence of stochastic sampling. Such interesting empirical evidence reasonably
+raise the following question: ”Are there problem classes for which deterministic training generalizes
+more efficiently than stochastic training?”
+
+While prior works provide extensive analysis of the generalization error and excess risk of stochastic
+gradient methods, tight and path-dependent generalization error and excess risk guarantees in non-
+stochastic training (for general smooth losses) remain unexplored. Our main purpose in this work is
+to theoretically establish that full-batch GD indeed generalizes efficiently for general smooth losses.
+While SGD appears to generalize better than full-batch GD for non-smooth and Lipschitz convex
+losses (Bassily et al., 2020; Amir et al., 2021), non-smoothness seems to be problematic for efficient
+algorithmic generalization. In fact, tightness analysis on non-smooth losses (Bassily et al., 2020)
+shows that the generalization error bounds become vacuous for standard step-size choices. Our work
+shows that for general smooth losses, full-batch GD achieves either tighter stability and excess error
+rates (convex case), or equivalent rates (compared to SGD in the strongly convex setting) but with
+significantly shorter training horizon (strongly-convex objective).
+
+2 RELATED WORK AND CONTRIBUTIONS
+
+√
+
+Let n denote the number of available training samples (examples). Recent results (Lei & Tang,
+n) for Lipschitz and smooth
+2021; Zhou et al., 2022) on SGD provided bounds of order O(1/
+n), with
+nonconvex losses. Neu et al. (2021) also provided generalization bounds of order O(ηT /
+T =
+n). In contrast, we show that full-batch
+GD generalizes efficiently for appropriate choices of decreasing learning rate that guarantees faster
+convergence and smaller generalization error, simultaneously. Additionally, the generalization error
+involves an intrinsic dependence on the set of the stationary points and the initial point. Specifically,
+
+n and step-size η = 1/T to recover the rate O(1/
+
+√
+
+√
+
+√
+
+2
+
+Published as a conference paper at ICLR 2023
+
+Full-Batch Gradient Descent
+
+Step Size
+
+ηt ≤ c/βt, ∀c < 1
+
+C
+
+ηt = 1/2β
+
+Excess Risk
+T c(cid:112)log(T ) + 1
+n
+(cid:18) T ϵc + 1
+n
+
++
+
+C
+
++ ϵopt
+
+(cid:19)
+
+1
+T
+
+ηt = 1/2β,
+T =
+
+√
+
+n
+
+ηt = 2/(β + γ)
+
+ηt = 2/(β + γ)
+T = (β+γ) log n
+
+2γ
+
+C
+
+ϵc + 1
+√
+n
+
++ O
+
+(cid:19)
+
+(cid:18) 1
+n
+
+(cid:32)
+
+√
+
+√
+
+T
+n
+
+ϵc
+
+C
+
++ exp
+
+(cid:19)(cid:33)
+
+(cid:18) −4T γ
+β + γ
+
++ O
+
+(cid:19)
+
+(cid:18) 1
+n2
+
+√
+
+C
+
+ϵc
+
+(cid:112)log(n)
+n
+
++ O
+
+(cid:19)
+
+(cid:18) 1
+n2
+
+Loss
+
+Nonconvex
+
+Convex
+
+Convex
+
+γ-Strongly
+Convex
+
+γ-Strongly
+Convex
+
+Table 2: A list of excess risk bounds for the full-batch GD up to some constant factor C > 0. We
+denote the number of samples by n. “ϵopt” denotes the optimization error ϵopt ≜ E[RS(A(S)) − R∗
+S],
+T is the total number of iterations and ϵc ≜ E[RS(W ∗
+S )] is the model capacity (interpolation) error.
+
+√
+
+we show that full-batch GD with the decreasing learning rate choice of ηt = 1/2βt achieves tighter
+bounds of the order O((cid:112)T log(T )/n) (since (cid:112)T log(T )/n ≤ 1/
+n) for any T ≤ n/ log(n). In
+fact, O((cid:112)T log(T )/n) essentially matches the rates in prior works (Hardt et al., 2016) for smooth
+and Lipschitz (and often bounded) loss, however we assume only smoothness at the expense of the
+(cid:112)log(T ) term. Further, for convex losses we show that full-batch GD attains tighter generalization
+error and excess risk bounds than those of SGD in prior works (Lei & Ying, 2020b), or similar rates
+in comparison with prior works that consider additional assumptions (Lipschitz or sub-Gaussian
+loss) (Hardt et al., 2016; Lugosi & Neu, 2022; Kozachkov et al., 2022). In fact, for convex losses
+and for a fixed step-size ηt = 1/2β, we show generalization error bounds of order O(T /n) for
+non-Lipschitz losses, while SGD bounds in prior work are of order O((cid:112)T /n) (Lei & Ying, 2020b).
+As a consequence, full-batch GD attains improved generalization error rates by one order of error
+magnitude and appears to be more stable in the non-Lipschitz case, however tightness guarantees for
+non-Lipschitz losses remains an open problem.
+
+Our results also establish that full-batch GD provably achieves efficient excess error rates through
+fewer number of iterations, as compared with the state-of-the-art excess error guarantees for SGD.
+Specifically, for convex losses with limited model capacity (non-interpolation), we show that with
+constant step size and T =
+n), while the SGD algorithm
+n, the excess risk is of the order O(1/
+requires T = n to achieve excess risk of the order O(1/
+
+n) (Lei & Ying, 2020b, Corollary 5.a).
+
+√
+
+√
+
+√
+
+For γ-strongly convex objectives, our analysis for full-batch GD relies on a leave-one-out γloo-strong
+convexity of the objective instead of the full loss function being strongly-convex. This property
+relaxes strong convexity, while it provides stability and generalization error guarantees that recover
+the convex loss setting when γloo → 0. Prior work (Lei & Ying, 2020b, Section 6, Stability with
+Relaxed Strong Convexity) requires a Lipschitz loss, while the corresponding bound becomes infinity
+when γ → 0, in contrast to the leave-one-out approach. Further, prior guarantees on SGD (Lei &
+Ying, 2020b, Theorem 11 and Theorem 12) often achieve the same rate of O(1/n), however with
+T = Θ(n) iterations (and a Lipschitz loss), in contrast with our full-batch GD bound that requires
+only T = Θ(log n) iterations (at the expense of a (cid:112)log(n) term)1. Finally, our approach does not
+require a projection step (in contrast to Hardt et al. (2016); Lei & Ying (2020b)) in the update rule
+and consequently avoids dependencies on possibly large Lipschitz constants.
+
+1SGD naturally requires less computation than GD. However, the directional step of GD can be evaluated in
+parallel. As a consequence, for a strongly-convex objective GD would be more efficient than SGD (in terms of
+running time) if some parallel computation is available.
+
+3
+
+Published as a conference paper at ICLR 2023
+
+In summary, we show that for smooth nonconvex, convex and strongly convex losses, full-batch GD
+generalizes, which provides an explanation of its good empirical performance in practice (Hoffer
+et al., 2017; Geiping et al., 2022). We refer the reader to Table 1 for an overview and comparison of
+our excess risk bounds and those of prior work (on SGD). A more detailed presentation of the bounds
+appears in Table 2 (see also Appendix A, Table 3 and Table 4).
+
+3 PROBLEM STATEMENT
+
+Let f (w, z) be the loss at the point w ∈ Rd for some example z ∈ Z. Given a dataset S ≜ {zi}n
+i=1
+of i.i.d samples zi from an unknown distribution D, our goal is to find the parameters w∗ of a learning
+model such that w∗ ∈ arg minw R(w), where R(w) ≜ EZ∼D[f (w, Z)] and R∗ ≜ R(w∗). Since the
+distribution D is not known, we consider the empirical risk
+
+RS(w) ≜ 1
+n
+
+n
+(cid:88)
+
+i=1
+
+f (w; zi).
+
+(1)
+
+The corresponding empirical risk minimization (ERM) problem is to find W ∗
+S ∈ arg minw RS(w)
+≜ RS(W ∗
+(assuming minimizers on data exist for simplicity) and we define R∗
+S ). For a deterministic
+S
+algorithm A with input S and output A(S), the excess risk ϵexcess is bounded by the sum of the
+generalization error ϵgen and the optimization error ϵopt (Hardt et al., 2016, Lemma 5.1), (Dentcheva
+& Lin, 2022)
+
+ϵexcess ≜ E[R(A(S))] − R∗ ≤ E[R(A(S)) − RS(A(S))]
+(cid:125)
+
+(cid:124)
+
+(cid:123)(cid:122)
+ϵgen
+
+(cid:124)
+
++ E[RS(A(S))] − E[RS(W ∗
+
+.
+
+(2)
+
+(cid:123)(cid:122)
+ϵopt
+
+S )]
+(cid:125)
+
+For the rest of the paper we assume that the loss is smooth and non-negative. These are the only
+globally required assumptions on the loss function.
+
+Assumption 1 (β-Smooth Loss) The gradient of the loss function is β-Lipschitz
+
+∥∇wf (w, z) − ∇uf (u, z)∥2 ≤ β∥w − u∥2,
+
+∀z ∈ Z.
+
+(3)
+
+Additionally, we define the interpolation error that will also appear in our results.
+
+Definition 1 (Model Capacity/Interpolation Error) Define ϵc ≜ E[RS(W ∗
+
+S )].
+
+In general ϵc ≥ 0 (non-negative loss). If the model has sufficiently large capacity, then for almost
+every S ∈ Zn, it is true that RS(W ∗
+S ) = 0. Equivalently, it holds that ϵc = 0. In the next section we
+provide a general theorem for the generalization error that holds for any symmetric deterministic
+algorithm (e.g. full-batch gradient descent) and any smooth loss under memorization of the data-set.
+
+4 SYMMETRIC ALGORITHM AND SMOOTH LOSS
+
+1, z′
+
+2, . . . , z′
+
+Consider the i.i.d random variables z1, z2, . . . , zn, z′
+n, with respect to an unknown dis-
+tribution D, the sets S ≜ (z1, z2, . . . , zn) and S(i) ≜ (z1, z2, . . . , z′
+i, . . . , zn) that differ at the ith
+random element. Recall that an algorithm is symmetric if the output remains unchanged under
+permutations of the input vector. Then (Bousquet & Elisseeff, 2002, Lemma 7) shows that for
+any i ∈ {1, . . . , n} and any symmetric deterministic algorithm A the generalization error is ϵgen =
+S(i),zi[f (A(S(i)); zi)−f (A(S); zi)]. Identically, we write ϵgen = E[f (A(S(i)); zi)−f (A(S); zi)],
+E
+where the expectation is over the random variables z1, . . . , zn, z′
+n for the rest of the paper.
+We define the model parameters Wt, W (i)
+evaluated at time t with corresponding inputs S and S(i).
+For brevity, we also provide the next definition.
+
+1, . . . , z′
+
+t
+
+Definition 2 We define the expected output stability as ϵstab(A) ≜ E[∥A(S) − A(S(i))∥2
+expected optimization error as ϵopt ≜ E[RS(A(S)) − RS(W ∗
+
+S )].
+
+2] and the
+
+We continue by providing an upper bound that connects the generalization error with the expected
+output stability and the expected optimization error at the final iterate of the algorithm.
+
+4
+
+Published as a conference paper at ICLR 2023
+
+Theorem 3 (Generalization Error) Let f (· ; z) be non-negative β-smooth loss for any z ∈ Z. For
+any symmetric deterministic algorithm A(·) the generalization error is bounded as
+
+(cid:113)
+
+|ϵgen| ≤ 2
+
+2β(ϵopt + ϵc)ϵstab(A) + 2βϵstab(A),
+
+(4)
+
+where ϵstab(A) ≜ E[∥A(S) − A(S(i))∥2
+positive (and independent of n and T ) and |ϵgen| = O(
+
+√
+
+ϵstab(A)).
+
+2]. In the limited model capacity case it is true that ϵc is
+
+We provide the proof of Theorem 3 in Appendix B.1. The generalization error bound in equation 4
+holds for any symmetric algorithm and smooth loss. Theorem 3 consist the tightest variant of (Lei
+& Ying, 2020b, Theorem 2, b)) and shows that the expected output stability and a small expected
+optimization error at termination sufficiently provide an upper bound on the generalization error for
+smooth (possibly non-Lipschitz) losses. Further, the optimization error term ϵopt is always bounded
+and goes to zero (with specific known rates) in the cases of (strongly) convex losses. Under the
+interpolation condition the generalization error bound satisfies tighter bounds.
+
+Corollary 4 (Generalization under Memorization) If memorization of the training set is feasible
+under sufficiently large model capacity, then ϵc = 0 and consequently |ϵgen| ≤ 2(cid:112)2βϵoptϵstab(A) +
+2βϵstab(A) and |ϵgen| = O(max{
+
+ϵoptϵstab(A), ϵstab(A)}).
+
+√
+
+For a small number of iterations T the above error rate is equivalent with Theorem 3. For sufficiently
+large T the optimization error rate matches the expected output stability and provides a tighter rate
+(with respect to that of Theorem 3) of |ϵgen| = O(ϵstab(A)).
+
+Remark. As a byproduct of Theorem 3, one can show generalization and excess risk bounds for a
+uniformly µ-PL objective (Karimi et al., 2016) defined as E[∥∇RS(w)∥2
+S] for
+all w ∈ Rd. Let πS ≜ π(A(S)) be the projection of the point A(S) to the set of the minimizers of
+RS(·). Further, define the constant ˜c ≜ E[RS(πS) + R(πS)]. Then a bound on the excess risk is (the
+proof appears in Appendix D)
+
+2] ≥ 2µE[RS(w) − R∗
+
+ϵexcess ≤
+
+√
+
+˜c
+
+8β
+
+nµ
+
+(cid:112)ϵopt + ϵc +
+
+8(cid:112)2βϵoptϵc
+√
+µ
+
++
+
+16˜cβ2
+n2µ2 +
+
+45β
+µ
+
+ϵopt.
+
+(5)
+
+We note that a closely related bound has been shown in (Lei & Ying, 2020a). In fact, (Lei &
+Ying, 2020a, Therem 7) requires simultaneously the interpolation error to be zero (ϵc = 0) and an
+additional assumption, namely the inequality β ≤ nµ/4, to hold. However, if β ≤ nµ/4 and ϵc = 0
+(interpolation assumption), then (Lei & Ying, 2020a, inequality (B.13), Proof of Theorem 1) implies
+that (E[R(πS)] ≤ 3E[RS(πS)] and) the expected population risk at πS is zero, i.e., E[R(πS)] = 0.
+Such a situation is apparently trivial since the population risk is zero at the empirical minimizer
+πS ∈ arg min RS(·).2 On the other hand, if β > nµ/4, these bounds become vacuous. A PL
+condition is interesting under the interpolation regime and since the PL is not uniform (with respect
+to the data-set) in practice (Liu et al., 2022), it is reasonable to consider similar bounds to that of 5 as
+trivial.
+
+5 FULL-BATCH GD
+
+In this section, we derive generalization error and excess risk bounds for the full-batch GD algorithm.
+We start by providing the definition of the expected path error ϵpath, in addition to the optimization
+error ϵopt. These quantities will prominently appear in our analysis and results.
+
+Definition 5 (Path Error) For any β-smooth (possibly) nonconvex loss, learning rate ηt, and for
+any i ∈ {1, . . . , n}, we define the expected path error as
+
+ϵpath ≜
+
+T
+(cid:88)
+
+t=1
+
+ηtE[∥∇f (Wt, zi)∥2
+2].
+
+(6)
+
+2In general, this occurs when n → ∞, and the generalization error is zero. As a consequence, the excess risk
+becomes equals to the optimization error (see also (Lei & Ying, 2020a, Therem 7)), and the analysis becomes
+not interesting from generalization error prospective.
+
+5
+
+Published as a conference paper at ICLR 2023
+
+The ϵpath term expresses the path-dependent quantity that appears in the generalization bounds
+in our results3. Additionally, as we show, the generalization error also depends on the average
+optimization error ϵopt (Theorem 3). A consequence of the dependence on ϵopt, is that full-batch GD
+generalizes when it reaches the neighborhoods of the loss minima. Essentially, the expected path
+error and optimization error replace bounds in prior works (Hardt et al., 2016; Kozachkov et al., 2022)
+that require a Lipschitz loss assumption to upper bound the gradients and substitute the Lipschitz
+constant with tighter quantities. Later we show the dependence of the expected output stability term
+in Theorem 3 with respect to the expected path error. Then through explicit rates for both ϵpath and
+ϵopt we characterize the generalization error and excess risk.
+
+5.1 NONCONVEX LOSS
+
+We proceed with the average output stability and generalization error bounds for nonconvex smooth
+losses. Through a stability error bound, the next result connects Theorem 3 with the expected path
+error and the corresponding learning rate. Then we use that expression to derive generalization error
+bounds for the full-batch GD in the case of nonconvex losses.
+
+Theorem 6 (Stability Error — Nonconvex Loss) Assume that the (possibly) nonconvex loss f (·, z)
+is β-smooth for all z ∈ Z. Consider the full-batch GD where T denotes the total number of
+iterates and ηt denotes the learning rate, for all t ≤ T + 1. Then for the outputs of the algorithm
+WT +1 ≡ A(S), W (i)
+
+T +1 ≡ A(S(i)) it is true that
+T
+(cid:88)
+
+ϵstab(A) ≤
+
+4ϵpath
+n2
+
+t=1
+
+j=t+1
+
+T
+(cid:89)
+
+ηt
+
+(1 + βηj)2 .
+
+(7)
+
+The expected output stability in Theorem 6 is bounded by the product of the expected path error
+(Definition 5), a sum-product term ((cid:80)T
+j=t+1 (1 + βηj)2) that only depends on the step-size
+and the term 4/n2 that provides the dependence on the sample complexity. In light of Theorem 3,
+and Theorem 6, we derive the generalization error of full-batch GD for smooth nonconvex losses.
+
+t=1 ηt
+
+(cid:81)T
+
+Theorem 7 (Generalization Error — Nonconvex Loss) Assume that the loss f (·, z) is β-smooth
+for all z ∈ Z. Consider the full-batch GD where T denotes the total number of iterates, and
+the learning rate is chosen as ηt ≤ C/t ≤ 1/β, for all t ≤ T + 1. Let ϵ ≜ βC < 1 and
+¯C(ϵ, T ) ≜ min {ϵ + 1/2, ϵ log(eT )}. Then the generalization error of full-batch GD is bounded by
+
+√
+
+n
+√
+
+4
+
+4
+
+|ϵgen| ≤
+
+≤
+
+2
+
+(cid:113)
+
+(ϵopt + ϵc)ϵpath(eT )ϵ ¯C
+
+1
+2 (ϵ, T ) + 8
+
+ϵpath
+n2 (eT )2ϵ ¯C(ϵ, T )
+
+3(eT )ϵ
+n
+
+(cid:113)
+
+(ϵopt + ϵc)ϵpath + 12
+
+(eT )2ϵ
+n2
+
+ϵpath.
+
+(8)
+
+Additionally, by the definition of the expected path and optimization error, and from the descent
+direction of algorithm, we evaluate upper bounds on the terms ϵpath and ϵopt and derive the next
+bound as a byproduct of Theorem 7.
+
+Corollary 8 The generalization error of full-batch GD in Theorem 7 can be further bounded as
+
+(cid:32)
+
+√
+8
+
+|ϵgen| ≤
+
+3
+
+(cid:112)log(eT )(eT )ϵ +
+
+48
+n2 log(eT )(eT )2ϵ
+
+n
+
+(cid:33)
+
+E[RS(W1)].
+
+(9)
+
+The inequality (8) in Theorem 7 shows the explicit dependence of the generalization error bound on
+the path-dependent error ϵpath and the optimization error ϵopt. Note that during the training process
+the path-dependent error increases, and the optimization error decreases. Both terms ϵpath and ϵopt
+may be upper bounded, to find the simplified (but potentially looser) bound appeared in Corollary
+8. We prove Theorem 6, Theorem 7 and Corollary 8 in Appendix C. Finally, the generalization
+error in Corollary 8 matches bounds in prior work, including information theoretic bounds for the
+SGLD algorithm (Wang et al., 2021b, Corollary 1) (with fixed step-size), while our results do not
+require the sub-Gaussian loss assumption and show that similar generalization is achievable through
+deterministic training.
+
+3Recall that the initial point W1 may be chosen arbitrarily and uniformly over the dataset.
+
+6
+
+Published as a conference paper at ICLR 2023
+
+Remark. (Dependence on Stationary Points) Let W1 be an arbitrary initial point (independent of
+S). Under mild assumptions (provided in (Lee et al., 2016)) GD convergences to (local) minimizers.
+Let W ∗
+. Then through the smoothness of
+the loss, we derive an alternative form of the generalization error bound in Theorem 3 that expresses
+the dependence of the generalization error with respect to the quality of the set of stationary points,
+i.e.,
+
+be the stationary point such limT ↑∞ A(S) → W ∗
+
+S,W1
+
+S,W1
+
+(cid:114)
+
+|ϵgen| ≤ 4
+
+β
+
+(cid:16)
+
+βE[∥A(S) − W ∗
+
+S,W1
+
+2] + E[RS(W ∗
+∥2
+
+S,W1
+
+(cid:17)
+
+)]
+
+ϵstab(A) + 2βϵstab(A)
+
+(10)
+
+Inequality (10) provides a detailed bound that depends on the expected loss at the stationary point
+and the expected distance of the output from the stationary point, namely E[∥A(S) − W ∗
+
+∥2
+2].
+
+S,W1
+
+5.2 CONVEX LOSS
+
+In this section, we provide generalization error guarantees for GD on smooth convex losses. Starting
+from the stability of the output of the algorithm, we show that the dependence on the learning rate is
+weaker than that of the nonconvex case. That dependence and the fast convergence to the minimum
+guarantee tighter generalization error bounds than the general case of nonconvex losses in Section
+5.1. The generalization error and the corresponding optimization error bounds provide an excess
+risk bound through the error decomposition (2). We refer the reader to Table 2 for a summary of the
+excess risk guarantees. We continue by providing the stability bound for convex losses.
+
+Theorem 9 (Stability Error — Convex Loss) Assume that the convex loss f (·, z) is β-smooth for
+all z ∈ Z. Consider the full-batch GD where T denotes the total number of iterates and ηt ≤ 1/2β
+learning rate, for all t ≤ T + 1. Then for outputs of the algorithm WT +1 ≡ A(S),W (i)
+T +1 ≡ A(S(i))
+it is true that
+
+ϵstab(A) ≤
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt ≤
+
+32β (cid:80)T
+n2
+
+t=1 ηt
+
+(cid:32)
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + ϵc
+
+(11)
+
+(cid:33)
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+In the convex case, the expected output stability (inequality 11) is bounded by the product of the ex-
+pected path error, the number of samples term 2/n2 and the accumulated learning rate. The inequality
+(11) gives ϵstab(A) = O(((cid:80)T
+t=1 ηt/n).
+In contrast, stability guarantees for the SGD and non-Lipschitz losses in prior work (Lei & Ying,
+(cid:16)(cid:80)T
+
+t=1 ηt/n)2) and through Theorem 3 we find |ϵgen| = O((cid:80)T
+
+2020b, Theorem 3, (4.4)) give ϵstab(A) = O
+t /n). As a
+consequence, GD guarantees are tighter than existing bounds of the SGD for non-Lipschitz losses,
+a variety of learning rates and T ≤ n. For instance, for fixed ηt = 1/
+T , the generalization error
+bound of GD is |ϵgen| = O(
+T /n) which is tighter than the corresponding bound of SGD, namely
+√
+|ϵgen| = O(1/
+n). Further, GD applies for much larger learning rates (ηt = 1/β), which provide
+not only tighter generalization error bound but also tighter excess risk guarantees than SGD as we
+later show. By combining Theorem 3 and Theorem 9, we show the next generalization error bound.
+
+and |ϵgen| = O(
+
+(cid:113)(cid:80)T
+
+t=1 η2
+
+t=1 η2
+
+t /n
+
+√
+
+√
+
+(cid:17)
+
+Theorem 10 (Generalization Error — Convex Loss) Let the loss function f (·, z) be convex and
+β-smooth for all z ∈ Z. Consider the full-batch GD where T denotes the total number of iterates.
+We chose the learning rate such that ηt ≤ 1/2β, for all t ≤ T + 1. Then the generalization error of
+full-batch GD is bounded by
+
+|ϵgen| ≤
+
+4(cid:112)2β (ϵopt + ϵc) ϵpath
+n
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+T
+(cid:88)
+
+t=1
+
+ηt + 8β
+
+ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt.
+
+(12)
+
+We provide the proof of Theorem 9 and Theorem 10 in Appendix E. Similar to the nonconvex case
+(Theorem 7), the bound in Theorem 10 shows the explicit dependence of the generalization error on
+the number of samples n, the path-dependent term ϵpath, and the optimization error ϵopt, as well as
+the effect of the accumulated learning rate. From the inequality (12), we can proceed by deriving
+exact bounds on the optimization error and the accumulated learning rate, to find explicit expressions
+of the generalization error bound. Through Theorem 9, Theorem 10 (and Lemma 20 in Appendix
+E), we derive explicit generalization error bounds for certain choices of the learning rate. In fact, we
+consider the standard choice ηt = 1/2β in the next result.
+
+7
+
+Published as a conference paper at ICLR 2023
+
+Theorem 11 (Generalization/Excess Error — Convex Loss) Let the loss function f (·, z) be con-
+vex and β-smooth for all z ∈ Z. If ηt = 1/2β for all t ∈ {1, . . . , T }, then
+
+|ϵgen| ≤ 8
+
+(cid:19)
+
+(cid:18) 1
+n
+
++
+
+2T
+n2
+
+(cid:0)3βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T ϵc
+
+(cid:1) ,
+
+and
+
+ϵexcess ≤ 8
+
+(cid:19)
+
+(cid:18) 1
+n
+
++
+
+2T
+n2
+
+(cid:0)3βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T ϵc
+
+(cid:1) +
+
+3βE[∥W1 − W ∗
+T
+
+S ∥2
+2]
+
+.
+
+(13)
+
+(14)
+
+√
+
+√
+
+n iterations the GD algorithm achieves ϵexcess = O(1/
+
+n). In contrast,
+As a consequence, for T =
+SGD requires T = n number of iterations to achieve ϵexcess = O(1/
+n) (Lei & Ying, 2020b,
+Corollary 5, a)). However, if ϵc = 0, then both algorithms have the same excess risk rate of O(1/n)
+through longer training with T = n iterations. Finally, observe that the term E[∥W1 − W ∗
+2 should
+be O(1) and independent of the parameters of interest (for instance n) to derive the aforementioned
+rates.
+
+S ]∥2
+
+√
+
+5.3 STRONGLY-CONVEX OBJECTIVE
+
+One common approach to enforce strong-convexity is through explicit regularization. In such a
+case both the objective RS(·) the individual losses f (·; z) are strongly-convex. In other practical
+scenarios, the objective is often strongly-convex but the individual losses are not (Ma et al., 2018,
+In this section, we show stability and generalization error guarantees that include
+Section 3).
+the above cases by assuming a γ-strongly convex objective. We also show a property of full-
+batch GD that requires only a leave-one-out variant of the objective to be strongly-convex. If the
+objective RS(·) is γ-strongly convex and the loss f (·; z) is β-smooth, then the leave-one-out function
+RS−i(w) ≜ (cid:80)n
+j=1,j̸=i f (w; zj)/n is γloo-strongly convex for all i ∈ {1, . . . , n} for some γloo ≤ γ.
+Although γloo is slightly smaller than γ (γloo = max{γ − β/n, 0}), our results reduce to the convex
+loss generalization and stability bounds when γloo → 0. Further, the faster convergence also provides
+tighter bounds for the excess risk (see Table 2).
+
+Theorem 12 (Stability Error — Strongly Convex Loss) Assume that the loss f (·, z) is β-smooth
+for all z ∈ Z and that RS(·) is γ-strongly convex. Consider the full-batch GD where T denotes
+the total number of iterates and ηt ≤ 2/(β + γ) denotes the learning rate, for all t ≤ T . Then for
+outputs of the algorithm WT +1 ≡ A(S), W (i)
+
+T +1 ≡ A(S(i)) it is true that
+
+ϵstab(A) ≤
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo) .
+
+Specifically, if ηt = 2/(β + γ), then
+
+ϵstab(A) ≤
+
+4ϵpath
+n2 min
+
+(cid:26) 1
+γloo
+
+,
+
+2T
+β
+
+(cid:27)
+
+.
+
+(15)
+
+(16)
+
+By comparing the stability guarantee of Theorem 9 with Theorem 12, we observe that the learning
+rate dependent term (sum-product) is smaller than that of the convex case. While the dependence on
+expected path error (ϵpath) is identical, we show (Appendix F) that the ϵpath term is smaller in the
+strongly convex case. Additionally, Theorem 12 recovers the stability bounds of the convex loss case,
+when γloo → 0 (and possibly γ → 0). Similarly to the nonconvex and convex loss cases, Theorem
+3 and the stability error bound in Theorem 12 provide the generalization error bound for strongly
+convex losses.
+
+Theorem 13 (Generalization Error — Strongly Convex Loss) Let the loss function f (·, z) β-
+smooth for all z ∈ Z and the objective RS(·) be γ-strongly convex. Consider the full-batch
+GD where T denotes the total number of iterates. Let us set the learning rate to ηt ≤ 2/(β + γ), for
+all t ≤ T . Then the generalization error of full-batch GD is bounded by
+
+|ϵgen| ≤
+
+4(cid:112)(ϵopt + ϵc)ϵpath
+n
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)2β
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo) + 8β
+
+ϵpath
+n2
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo) .
+
+8
+
+Published as a conference paper at ICLR 2023
+
+We prove Theorem 12 and Theorem 13 in Appendix F. Recall that the sum-product term in the
+inequality of Theorem 13 is smaller than the summation of the learning rates in Theorem 10. This
+fact together with the tighter optimization error bound provide a smaller excess risk than those of
+the convex losses. Similar to the convex loss setting, we use known optimization error guarantees
+of full-batch GD for strongly convex losses to derive explicit expressions of the generalization and
+excess risk bounds. By combining Theorem 13 and optimization and path error bounds (Lemma
+22, Lemma 23 in Appendix F, and Lemma 15 in Appendix B.2), we derive our generalization error
+bound for fixed step size as follows in the next result.
+
+Theorem 14 (Generalization/Excess — Strongly Convex Loss) Let the objective function RS(·)
+be γ-strongly convex and β-smooth by choosing some β-smooth loss f (·, z)), not necessarily
+(strongly) convex for all z ∈ Z. Define m(γloo, T ) ≜ βT min {β/γloo, 2T } /(β + γ) and
+M(W1) ≜ max (cid:8)βE[∥W1 − W ∗
+S )](cid:9), and set the learning rate to ηt = 2/(β + γ).
+Then the generalization error of the full-batch GD at the last iteration satisfies the inequality
+
+2], E[RS(W ∗
+
+S ∥2
+
+|ϵgen| ≤
+
+√
+
+8
+
+n
+
+6
+
+(cid:32)
+(cid:112)M (W1) +
+
+(cid:32)
+
+exp
+
+(cid:19)
+
+(cid:18) −2T γ
+β + γ
+
++
+
+√
+4
+
+3
+
+n
+
+(cid:112)m(γloo, T )
+
+(cid:33)
+
+(cid:33)
+(cid:112)m(γloo, T ).
+
+M(W1)
+
+Additionally the optimization error (Lemma 23 in Appendix F) and the inequality (2) give the following
+excess risk
+
+ϵexcess ≤
+
+√
+8
+
+6
+
+(cid:34)
+
+n
+
+(cid:112)
+
+∆T +
+
+(cid:32)
+
+exp
+
+(cid:19)
+
+(cid:18) −2T γ
+β + γ
+
++
+
+√
+4
+
+3
+
+n
+
+(cid:33)(cid:35)
+
+∆T
+
++ Λ exp
+
+(cid:18) −4T γ
+β + γ
+
+(cid:19)
+
+,
+
+(17)
+
+where ∆T ≜ βT M (W1) min {β/γloo, 2T } /(β + γ) and Λ ≜ βE[∥W1 − W ∗
+
+S ∥2
+
+2]/2.
+
+Theorem 13 and Theorem 14 also recover the convex setting when γ → 0 or γloo → 0. Additionally,
+for γ > 0 and by setting the number of iterations as T = (β/γ + 1) log(n)/2 and by defining the
+≜ β min {β/γloo, (β/γ + 1) log n} /2γ, the last inequality gives
+sequence mn,γloo
+
+|ϵgen| ≤
+
+√
+
+8
+
+6 log n
+n
+
+(cid:32)
+
+(cid:112)
+
+M(W1) +
+
+1 + 4(cid:112)3mn,γloo
+n
+
+(cid:33)
+
+√
+
+M(W1)
+
+mn,γloo .
+
+(18)
+
+Finally, for T = (β/γ + 1) log(n)/2 iterations it is true that
+√
+
+ϵexcess ≤
+
+√
+8
+
+6 log n
+n
+
+(cid:32)
+
+(cid:112)
+
+Γn +
+
+1 + 4
+n
+
+3
+
+(cid:33)
+
+Γn
+
++ O
+
+(cid:19)
+
+,
+
+(cid:18) 1
+n2
+
+(19)
+
+(cid:16)(cid:112)log(n)/n
+
+where Γn ≜ βM(W1) min {β/γloo, (β/γ + 1) log n} /2γ and as a consequence the excess risk is of
+. As a comparison, the SGD algorithm (Lei & Ying, 2020b, Theorem 12)
+the order O
+requires T = n number of iterations to achieve an excess risk of the order O(1/n), while full-batch
+GD achieves essentially the same rate with T = (β/γ + 1) log(n)/2 iterations.
+
+(cid:17)
+
+6 CONCLUSION
+
+In this paper we developed generalization error and excess risk guarantees for deterministic training
+on smooth losses via the the full-batch GD algorithm. At the heart of our analysis is a sufficient
+condition for generalization, implying that, for every symmetric algorithm, average algorithmic
+output stability and a small expected optimization error at termination ensure generalization. By
+exploiting this sufficient condition, we explicitly characterized the generalization error in terms of the
+number of samples, the learning rate, the number of iterations, a path-dependent quantity and the
+optimization error at termination, further exploring the generalization ability of full-batch GD for
+different types of loss functions. More specifically, we derived explicit rates on the generalization
+error and excess risk for nonconvex, convex and strongly convex smooth (possibly non-Lipschitz)
+losses/objectives. Our theoretical results shed light on recent empirical observations indicating that
+full-batch gradient descent generalizes efficiently and that stochastic training procedures might not
+be necessary and in certain cases may even lead to higher generalization errors and excess risks.
+
+9
+
+Published as a conference paper at ICLR 2023
+
+7 ACKNOWLEDGMENTS AND DISCLOSURE OF FUNDING
+
+We would like to thank the four anonymous reviewers for providing valuable comments and sugges-
+tions, which have improved the presentation of the results and the overall quality of our paper.
+
+Amin Karbasi acknowledges funding in direct support of this work from NSF (IIS-1845032), ONR
+(N00014- 19-1-2406), and the AI Institute for Learning-Enabled Optimization at Scale (TILOS).
+
+REFERENCES
+
+P. A. Absil, R. Mahony, and B. Andrews. Convergence of the iterates of descent methods for analytic
+cost functions. SIAM Journal on Optimization, 16(2):531–547, 2005. doi: 10.1137/040605266.
+URL https://doi.org/10.1137/040605266.
+
+Zeyuan Allen-Zhu, Yuanzhi Li, and Zhao Song. A convergence theory for deep learning via over-
+parameterization. In Kamalika Chaudhuri and Ruslan Salakhutdinov (eds.), Proceedings of the 36th
+International Conference on Machine Learning, volume 97 of Proceedings of Machine Learning
+Research, pp. 242–252. PMLR, 09–15 Jun 2019. URL https://proceedings.mlr.press/
+v97/allen-zhu19a.html.
+
+Idan Amir, Yair Carmon, Tomer Koren, and Roi Livni. Never go full batch (in stochastic convex
+optimization). In M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan
+(eds.), Advances in Neural Information Processing Systems, volume 34, pp. 25033–25043. Curran
+Associates, Inc., 2021. URL https://proceedings.neurips.cc/paper/2021/file/
+d27b95cac4c27feb850aaa4070cc4675-Paper.pdf.
+
+Raef Bassily, Vitaly Feldman, Crist´obal Guzm´an, and Kunal Talwar. Stability of stochastic gradient
+descent on nonsmooth convex losses. In H. Larochelle, M. Ranzato, R. Hadsell, M. F. Balcan, and
+H. Lin (eds.), Advances in Neural Information Processing Systems, volume 33, pp. 4381–4391.
+Curran Associates, Inc., 2020. URL https://proceedings.neurips.cc/paper/2020/
+file/2e2c4bf7ceaa4712a72dd5ee136dc9a8-Paper.pdf.
+
+Olivier Bousquet and Andr´e Elisseeff.
+
+The Journal of Ma-
+chine Learning Research, 2:499–526, 2002. URL https://www.jmlr.org/papers/v2/
+bousquet02a.html.
+
+Stability and generalization.
+
+Zachary Charles and Dimitris Papailiopoulos. Stability and generalization of learning algorithms
+that converge to global optima. In Jennifer Dy and Andreas Krause (eds.), Proceedings of the 35th
+International Conference on Machine Learning, volume 80 of Proceedings of Machine Learning
+Research, pp. 745–754. PMLR, 10–15 Jul 2018. URL https://proceedings.mlr.press/
+v80/charles18a.html.
+
+Sourav Chatterjee. Convergence of gradient descent for deep neural networks. arXiv preprint
+
+arXiv:2203.16462, 2022. URL https://arxiv.org/abs/2203.16462.
+
+Darinka Dentcheva and Yang Lin. Bias reduction in sample-based optimization. SIAM Journal on
+Optimization, 32(1):130–151, 2022. doi: 10.1137/20M1326428. URL https://doi.org/
+10.1137/20M1326428.
+
+Tyler Farghly and Patrick Rebeschini. Time-independent generalization bounds for SGLD in non-
+convex settings. In M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan
+(eds.), Advances in Neural Information Processing Systems, volume 34, pp. 19836–19846. Curran
+Associates, Inc., 2021. URL https://proceedings.neurips.cc/paper/2021/file/
+a4ee59dd868ba016ed2de90d330acb6a-Paper.pdf.
+
+Vitaly Feldman.
+
+Generalization of erm in stochastic convex optimization: The dimen-
+sion strikes back.
+In D. Lee, M. Sugiyama, U. Luxburg, I. Guyon, and R. Garnett
+(eds.), Advances in Neural Information Processing Systems, volume 29. Curran Asso-
+ciates, Inc., 2016. URL https://proceedings.neurips.cc/paper/2016/file/
+8c01a75941549a705cf7275e41b21f0d-Paper.pdf.
+
+10
+
+Published as a conference paper at ICLR 2023
+
+Vitaly Feldman and Jan Vondrak. Generalization bounds for uniformly stable algorithms.
+In S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Gar-
+nett (eds.), Advances in Neural Information Processing Systems, volume 31. Curran Asso-
+ciates, Inc., 2018. URL https://proceedings.neurips.cc/paper/2018/file/
+05a624166c8eb8273b8464e8d9cb5bd9-Paper.pdf.
+
+Vitaly Feldman and Jan Vondrak. High probability generalization bounds for uniformly stable algo-
+rithms with nearly optimal rate. In Alina Beygelzimer and Daniel Hsu (eds.), Proceedings of the
+Thirty-Second Conference on Learning Theory, volume 99 of Proceedings of Machine Learning Re-
+search, pp. 1270–1279. PMLR, 25–28 Jun 2019. URL https://proceedings.mlr.press/
+v99/feldman19a.html.
+
+Jonas Geiping, Micah Goldblum, Phil Pope, Michael Moeller, and Tom Goldstein. Stochastic training
+is not necessary for generalization. In International Conference on Learning Representations,
+2022. URL https://openreview.net/forum?id=ZBESeIUB5k.
+
+Robert Mansel Gower, Nicolas Loizou, Xun Qian, Alibek Sailanbayev, Egor Shulgin, and Peter
+Richt´arik. SGD: General analysis and improved rates.
+In Kamalika Chaudhuri and Ruslan
+Salakhutdinov (eds.), Proceedings of the 36th International Conference on Machine Learning,
+volume 97 of Proceedings of Machine Learning Research, pp. 5200–5209. PMLR, 09–15 Jun
+2019. URL https://proceedings.mlr.press/v97/qian19b.html.
+
+Moritz Hardt, Ben Recht, and Yoram Singer. Train faster, generalize better: Stability of stochastic
+gradient descent. In Maria Florina Balcan and Kilian Q. Weinberger (eds.), Proceedings of The
+33rd International Conference on Machine Learning, volume 48 of Proceedings of Machine
+Learning Research, pp. 1225–1234, New York, New York, USA, 20–22 Jun 2016. PMLR. URL
+https://proceedings.mlr.press/v48/hardt16.html.
+
+Elad Hoffer,
+
+Itay Hubara, and Daniel Soudry.
+
+clos-
+ing the generalization gap in large batch training of neural networks.
+In I. Guyon,
+U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett
+(eds.), Advances in Neural Information Processing Systems, volume 30. Curran Asso-
+ciates, Inc., 2017. URL https://proceedings.neurips.cc/paper/2017/file/
+a5e0ff62be0b08456fc7f1e88812af3d-Paper.pdf.
+
+Train longer, generalize better:
+
+Hamed Karimi, Julie Nutini, and Mark Schmidt. Linear convergence of gradient and proximal-
+gradient methods under the Polyak-Łojasiewicz condition. In Joint European Conference on
+Machine Learning and Knowledge Discovery in Databases, pp. 795–811. Springer, 2016. URL
+https://doi.org/10.1007/978-3-319-46128-1 50.
+
+Yegor Klochkov and Nikita Zhivotovskiy. Stability and deviation optimal risk bounds with con-
+vergence rate o(1/n). In M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman
+Vaughan (eds.), Advances in Neural Information Processing Systems, volume 34, pp. 5065–5076.
+Curran Associates, Inc., 2021. URL https://proceedings.neurips.cc/paper/2021/
+file/286674e3082feb7e5afb92777e48821f-Paper.pdf.
+
+Leo Kozachkov, Patrick M Wensing, and Jean-Jacques Slotine. Generalization in supervised learning
+through Riemannian contraction. arXiv preprint arXiv:2201.06656, 2022. URL https://
+arxiv.org/abs/2201.06656.
+
+Ilja Kuzborskij and Christoph Lampert. Data-dependent stability of stochastic gradient descent. In Jen-
+nifer Dy and Andreas Krause (eds.), Proceedings of the 35th International Conference on Machine
+Learning, volume 80 of Proceedings of Machine Learning Research, pp. 2815–2824. PMLR, 10–15
+Jul 2018. URL https://proceedings.mlr.press/v80/kuzborskij18a.html.
+
+Y. Lecun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-based learning applied to document
+
+recognition. Proceedings of the IEEE, 86(11):2278–2324, 1998. doi: 10.1109/5.726791.
+
+Jason D. Lee, Max Simchowitz, Michael I. Jordan, and Benjamin Recht. Gradient descent only
+converges to minimizers. In Vitaly Feldman, Alexander Rakhlin, and Ohad Shamir (eds.), 29th
+Annual Conference on Learning Theory, volume 49 of Proceedings of Machine Learning Research,
+pp. 1246–1257, Columbia University, New York, New York, USA, 23–26 Jun 2016. PMLR. URL
+https://proceedings.mlr.press/v49/lee16.html.
+
+11
+
+Published as a conference paper at ICLR 2023
+
+Yunwen Lei and Ke Tang. Learning rates for stochastic gradient descent with nonconvex objectives.
+IEEE Transactions on Pattern Analysis and Machine Intelligence, 43(12):4505–4511, 2021. doi:
+10.1109/TPAMI.2021.3068154.
+
+Yunwen Lei and Yiming Ying. Sharper generalization bounds for learning with gradient-dominated
+objective functions. In International Conference on Learning Representations, 2020a. URL
+https://iclr.cc/virtual/2021/poster/3141.
+
+Yunwen Lei and Yiming Ying. Fine-grained analysis of stability and generalization for stochastic
+gradient descent. In Hal Daum´e III and Aarti Singh (eds.), Proceedings of the 37th International
+Conference on Machine Learning, volume 119 of Proceedings of Machine Learning Research, pp.
+5809–5819. PMLR, 13–18 Jul 2020b. URL https://proceedings.mlr.press/v119/
+lei20c.html.
+
+Yunwen Lei, Antoine Ledent, and Marius Kloft. Sharper generalization bounds for pairwise
+In H. Larochelle, M. Ranzato, R. Hadsell, M. F. Balcan, and H. Lin (eds.), Ad-
+learning.
+vances in Neural Information Processing Systems, volume 33, pp. 21236–21246. Curran As-
+sociates, Inc., 2020. URL https://proceedings.neurips.cc/paper/2020/file/
+f3173935ed8ac4bf073c1bcd63171f8a-Paper.pdf.
+
+Yunwen Lei, Ting Hu, and Ke Tang. Generalization performance of multi-pass stochastic gradient
+descent with convex loss functions. The Journal of Machine Learning Research, 22(25):1–41,
+2021a. URL http://jmlr.org/papers/v22/19-716.html.
+
+Yunwen Lei, Mingrui Liu, and Yiming Ying. Generalization guarantee of sgd for pairwise learn-
+ing. In M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan (eds.),
+Advances in Neural Information Processing Systems, volume 34, pp. 21216–21228. Curran As-
+sociates, Inc., 2021b. URL https://proceedings.neurips.cc/paper/2021/file/
+b1301141feffabac455e1f90a7de2054-Paper.pdf.
+
+Jian Li, Xuanyuan Luo, and Mingda Qiao. On generalization error bounds of noisy gradient methods
+for non-convex learning. In International Conference on Learning Representations, 2020. URL
+https://openreview.net/forum?id=SkxxtgHKPS.
+
+Chaoyue Liu, Libin Zhu, and Mikhail Belkin. Loss landscapes and optimization in over-parameterized
+non-linear systems and neural networks. Applied and Computational Harmonic Analysis, 59:85–
+116, 2022. ISSN 1063-5203. doi: https://doi.org/10.1016/j.acha.2021.12.009. URL https://
+www.sciencedirect.com/science/article/pii/S106352032100110X. Special
+Issue on Harmonic Analysis and Machine Learning.
+
+Gabor Lugosi and Gergely Neu. Generalization bounds via convex analysis. In Po-Ling Loh and
+Maxim Raginsky (eds.), Proceedings of Thirty Fifth Conference on Learning Theory, volume 178
+of Proceedings of Machine Learning Research, pp. 3524–3546. PMLR, 02–05 Jul 2022. URL
+https://proceedings.mlr.press/v178/lugosi22a.html.
+
+Siyuan Ma, Raef Bassily, and Mikhail Belkin. The power of interpolation: Understanding the
+effectiveness of SGD in modern over-parametrized learning. In Jennifer Dy and Andreas Krause
+(eds.), Proceedings of the 35th International Conference on Machine Learning, volume 80 of
+Proceedings of Machine Learning Research, pp. 3325–3334. PMLR, 10–15 Jul 2018. URL
+https://proceedings.mlr.press/v80/ma18a.html.
+
+Liam Madden, Emiliano Dall’Anese, and Stephen Becker. High probability convergence and uniform
+stability bounds for nonconvex stochastic gradient descent. arXiv e-prints, pp. arXiv–2006, 2020.
+URL https://arxiv.org/abs/2006.05610.
+
+Wenlong Mou, Liwei Wang, Xiyu Zhai, and Kai Zheng. Generalization bounds of SGLD for
+non-convex learning: Two theoretical viewpoints. In S´ebastien Bubeck, Vianney Perchet, and
+Philippe Rigollet (eds.), Proceedings of the 31st Conference On Learning Theory, volume 75
+of Proceedings of Machine Learning Research, pp. 605–638. PMLR, 06–09 Jul 2018. URL
+https://proceedings.mlr.press/v75/mou18a.html.
+
+12
+
+Published as a conference paper at ICLR 2023
+
+Jeffrey Negrea, Mahdi Haghifam, Gintare Karolina Dziugaite, Ashish Khisti, and Daniel M.
+Roy.
+Information-theoretic generalization bounds for SGLD via data-dependent estimates.
+In H. Wallach, H. Larochelle, A. Beygelzimer, F. d'Alch´e-Buc, E. Fox, and R. Gar-
+nett (eds.), Advances in Neural Information Processing Systems, volume 32. Curran Asso-
+ciates, Inc., 2019. URL https://proceedings.neurips.cc/paper/2019/file/
+05ae14d7ae387b93370d142d82220f1b-Paper.pdf.
+
+Yu Nesterov.
+
+Introductory lectures on convex programming, 1998.
+
+URL https:
+
+//citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.693.855&rep=
+rep1&type=pdf.
+
+Gergely Neu, Gintare Karolina Dziugaite, Mahdi Haghifam, and Daniel M. Roy.
+
+Information-
+theoretic generalization bounds for stochastic gradient descent. In Mikhail Belkin and Samory
+Kpotufe (eds.), Proceedings of Thirty Fourth Conference on Learning Theory, volume 134 of
+Proceedings of Machine Learning Research, pp. 3526–3545. PMLR, 15–19 Aug 2021. URL
+https://proceedings.mlr.press/v134/neu21a.html.
+
+Ankit Pensia, Varun Jog, and Po-Ling Loh. Generalization error bounds for noisy, iterative algorithms.
+In 2018 IEEE International Symposium on Information Theory (ISIT), pp. 546–550, 2018. doi:
+10.1109/ISIT.2018.8437571.
+
+Ali Ramezani-Kebrya, Ashish Khisti, and Ben Liang. On the generalization of stochastic gradient
+descent with momentum. arXiv preprint arXiv:2102.13653, 2021. URL url={https://
+arxiv.org/abs/1809.04564}.
+
+Nathan Srebro, Karthik Sridharan, and Ambuj Tewari.
+
+low noise and
+fast rates.
+In J. Lafferty, C. Williams, J. Shawe-Taylor, R. Zemel, and A. Culotta
+(eds.), Advances in Neural Information Processing Systems, volume 23. Curran Asso-
+ciates, Inc., 2010. URL https://proceedings.neurips.cc/paper/2010/file/
+76cf99d3614e23eabab16fb27e944bf9-Paper.pdf.
+
+Smoothness,
+
+Bohan Wang, Huishuai Zhang, Jieyu Zhang, Qi Meng, Wei Chen, and Tie-Yan Liu. Op-
+timizing information-theoretical generalization bound via anisotropic noise of SGLD.
+In
+M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan (eds.), Ad-
+vances in Neural Information Processing Systems, volume 34, pp. 26080–26090. Curran As-
+sociates, Inc., 2021a. URL https://proceedings.neurips.cc/paper/2021/file/
+db2b4182156b2f1f817860ac9f409ad7-Paper.pdf.
+
+Hao Wang, Yizhe Huang, Rui Gao, and Flavio Calmon.
+
+Analyzing the generaliza-
+tion capability of SGLD using properties of gaussian channels.
+In M. Ranzato,
+A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan (eds.), Advances
+in Neural Information Processing Systems, volume 34, pp. 24222–24234. Curran Asso-
+ciates, Inc., 2021b. URL https://proceedings.neurips.cc/paper/2021/file/
+cb77649f5d53798edfa0ff40dae46322-Paper.pdf.
+
+Puyu Wang, Liang Wu, and Yunwen Lei. Stability and generalization for randomized coordi-
+nate descent. arXiv preprint arXiv:2108.07414, 2021c. URL https://arxiv.org/abs/
+2108.07414.
+
+Yue Xing, Qifan Song, and Guang Cheng. On the algorithmic stability of adversarial training.
+In M. Ranzato, A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan (eds.), Ad-
+vances in Neural Information Processing Systems, volume 34, pp. 26523–26535. Curran As-
+sociates, Inc., 2021. URL https://proceedings.neurips.cc/paper/2021/file/
+df1f1d20ee86704251795841e6a9405a-Paper.pdf.
+
+Yikai Zhang, Wenjia Zhang, Sammy Bald, Vamsi Pingali, Chao Chen, and Mayank Goswami.
+Stability of sgd: Tightness analysis and improved bounds. Uncertainty in artificial intelligence,
+2021. URL https://par.nsf.gov/biblio/10366270.
+
+Towards un-
+Pan Zhou, Hanshu Yan, Xiaotong Yuan, Jiashi Feng, and Shuicheng Yan.
+derstanding why lookahead generalizes better than SGD and beyond.
+In M. Ranzato,
+A. Beygelzimer, Y. Dauphin, P.S. Liang, and J. Wortman Vaughan (eds.), Advances
+
+13
+
+Published as a conference paper at ICLR 2023
+
+in Neural Information Processing Systems, volume 34, pp. 27290–27304. Curran Asso-
+ciates, Inc., 2021a. URL https://proceedings.neurips.cc/paper/2021/file/
+e53a0a2978c28872a4505bdb51db06dc-Paper.pdf.
+
+Yi Zhou, Yingbin Liang, and Huishuai Zhang. Understanding generalization error of SGD in noncon-
+vex optimization. Machine Learning, pp. 1–31, 2021b. URL https://link.springer.com/
+article/10.1007/s10994-021-06056-w.
+
+Yi Zhou, Yingbin Liang, and Huishuai Zhang. Understanding generalization error of SGD in
+nonconvex optimization. Machine Learning, 111(1):345–375, 2022. URL https://doi.org/
+10.1007/s10994-021-06056-w.
+
+14
+
+Published as a conference paper at ICLR 2023
+
+Step Size
+
+ηt ≤ C/βt, ∀C < 1
+
+ηt ≤ C/βt, ∀C < 1
+
+ηt = 1/2β
+
+ηt = 2/(β + γ)
+
+Full-Batch Gradient Descent
+
+Generalization Error
+
+√
+
+4e
+n
+
+3
+
+T C(cid:113)
+
+(ϵopt + ϵc)ϵpath +
+
+12e2
+n2 T 2Cϵpath
+
+(cid:32)(cid:112)log(eT )(eT )C
+n
+
+48
+
++
+
+log(eT )(eT )2C
+n2
+
+(cid:33)
+
+E[RS(W1)]
+
+(cid:19)
+
+(cid:18) 1
+n
+
+8
+
++
+
+2T
+n2
+
+(cid:0)3βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T ϵc
+
+(cid:1)
+
+√
+
+6
+
+8
+
+(cid:34)
+
+(cid:112)
+
+n
+
+(cid:32)
+
+∆T +
+
+exp
+
+(cid:19)
+
+(cid:18) −2T γ
+β + γ
+
++
+
+(cid:33)(cid:35)
+
+√
+4
+
+3
+
+n
+
+∆T
+
+Loss
+
+NC
+
+NC
+
+C
+
+γ-SC
+
+Table 3: A list of the generalization error bounds for the full-batch GD. We denote the number of
+samples by n. W1 is the initial point of the algorithm, and W ∗
+S is a point in the set of minimizers
+of the objective. Also, “ϵpath” denotes the expected path error ϵpath ≜ (cid:80)T
+t=1 ηtE[∥∇f (Wt, zi)∥2
+2],
+“ϵopt” denotes the optimization error ϵopt ≜ E[RS(A(S)) − R∗
+S], T is the total number of
+iterations and we define the model capacity (interpolation) error risk as ϵc ≜ E[RS(W ∗
+S )].
+S )](cid:9) and the terms
+Lastly, we define the constant M(W1) ≜ max (cid:8)βE[∥W1 − W ∗
+Γn ≜ βM(W1) min {β/γloo, (β/γ + 1) log n} /2γ, ∆T ≜ βT M (W1) min {β/γloo, 2T } /(β + γ).
+Lastly, ”NC”, ”C” and ”γ-SC” correspond to nonconvex, convex and γ-strongly convex objective,
+respectively.
+
+2], E[RS(W ∗
+
+S ∥2
+
+A SUMMARY OF THE RESULTS
+
+Herein, we present a summary of the generalization and excess risk bounds. The detailed expressions
+of the generalization and excess risk bounds appear in Table 3 and 4.
+
+B PROOFS
+
+We provide the proofs of the results in these sections. We start by proving Theorem 3 and the bounds
+on the sum-product terms that appear in the stability error bounds, and then we continue with stability
+and generalization error guarantees, that we prove in parallel. We derive the excess risk bounds by
+applying the decomposition of the inequality (2).
+
+B.1 PROOF OF THEOREM 3
+
+It is true that for any i, j ∈ {1, . . . , n}
+
+E[f (A(S); zi)] = E[f (A(S); zj)] =
+
+1
+n
+
+n
+(cid:88)
+
+k=1
+
+E[f (A(S); zk)] = E[RS(A(S))].
+
+(20)
+
+We show equation 20 through the symmetry of the algorithm (at each iteration) and the fact that
+{zi}n
+i=1 remain exchangeable.4
+The β-smooth property of f (· ; z) for all z ∈ Z gives
+
+i=1 are identically distributed as follows. The random variables {zi}n
+
+f (A(S(i)); z) − f (A(S); z) ≤ ⟨A(S(i)) − A(S), ∇f (A(S); z)⟩ +
+
+β∥A(S(i)) − A(S)∥2
+2
+2
+
+.
+
+(21)
+
+4P(z1 = c1, z2 = c2, . . . , zi = ci, . . . , zj = cj, . . . , zn = cn, A(S) = w) = P(z1 = c1, z2 =
+c2, . . . , zi = cj, . . . , zj = ci, . . . , zn = cn, A(S) = w) for any choice of the values c1, c2, . . . , cn, w and for
+any i, j ∈ {1, . . . , n}.
+
+15
+
+Published as a conference paper at ICLR 2023
+
+Step Size
+
+ηt ≤ C/βt,
+∀C < 1
+
+ηt = 1/2β
+
+ηt = 1/2β,
+T =
+
+√
+
+n
+
+ηt = 2/(β + γ)
+
+ηt = 2/(β + γ)
+T = (β+γ) log n
+
+2γ
+
+Full-Batch Gradient Descent
+
+Excess Risk
+
+(cid:32)(cid:112)log(eT )(eT )C
+n
+
+48
+
++
+
+log(eT )(eT )2C
+n2
+
+(cid:33)
+
+E[RS(W1)] + ϵopt
+
+(cid:19)
+
+(cid:18) 8
+n
+
++
+
+16T
+n2
+
+(cid:0)3βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T ϵc
+
+(cid:1) +
+
+3βE[∥W1 − W ∗
+T
+
+S ∥2
+2]
+
+8
+
+ϵc + 3βE[∥W1 − W ∗
+√
+
+S ∥2
+2]
+
+n
+
+√
+
+3
+
+8
+
+(cid:34)
+
+(cid:112)
+
+n
+
+(cid:32)
+
+∆T +
+
+exp
+
+(cid:18) −2T γ
+β + γ
+
+(cid:19)
+
++
+
+√
+
+3
+
+4
+
+n
+
++ O
+
+(cid:19)
+
+(cid:18) 1
+n
+
+(cid:33)(cid:35)
+
+∆T
+
++Λ exp
+
+(cid:19)
+
+(cid:18) −4T γ
+β + γ
+
+√
+8
+
+(cid:32)
+
+3 log n
+n
+
+(cid:112)
+
+Γn +
+
+1 + 4
+n
+
+√
+
+3
+
+(cid:33)
+
+Γn
+
++ O
+
+(cid:19)
+
+(cid:18) 1
+n2
+
+Loss
+
+NC
+
+C
+
+C
+
+γ-SC
+
+γ-SC
+
+Table 4: A list of excess risk bounds for the full-batch GD. We denote the number of samples by n.
+W1 is the initial point of the algorithm, and W ∗
+S is a point in the set of minimizers of the objective.
+Also, “ϵpath” denotes the expected path error ϵpath ≜ (cid:80)T
+2], “ϵopt” denotes
+the optimization error ϵopt ≜ E[RS(A(S)) − R∗
+S], T is the total number of iterations and we define
+the model capacity (interpolation) error risk as ϵc ≜ E[RS(W ∗
+S )]. Lastly, we define the constants
+S )](cid:9) and the terms Γn ≜
+2], E[RS(W ∗
+Λ ≜ βE[∥W1 − W ∗
+S ∥2
+βM(W1) min {β/γloo, (β/γ + 1) log n} /2γ, ∆T ≜ βT M (W1) min {β/γloo, 2T } /(β + γ). Lastly,
+”NC”, ”C” and ”γ-SC” correspond to nonconvex, convex and γ-strongly convex objective, respectively.
+
+2]/2, M(W1) ≜ max (cid:8)βE[∥W1 − W ∗
+
+t=1 ηtE[∥∇f (Wt, zi)∥2
+
+S ∥2
+
+The expression ϵgen = E[f (A(S(i)); zi) − f (A(S); zi)] and the inequality (21) give
+(cid:21)
+β∥A(S(i)) − A(S)∥2
+2
+2
+
+(cid:20)
+⟨A(S(i)) − A(S), ∇f (A(S); zi)⟩ +
+
+ϵgen ≤ E
+
+(22)
+
+We find an upper bound for the expectation of the inner product of the inequality (22) by applying
+Cauchy-Schwartz inequality as
+(cid:104)
+
+E
+
+(cid:105)
+⟨A(S(i)) − A(S), ∇f (A(S); zi)⟩
+
+≤ E
+(cid:113)
+
+≤
+
+(cid:104)
+∥A(S(i)) − A(S)∥2∥∇f (A(S); zi)∥2
+
+ϵstab(A)E [∥∇f (A(S); zi)]∥2
+2],
+
+(cid:105)
+
+(23)
+
+(24)
+
+here we use the inequalities ⟨a, b⟩ ≤ ∥a∥2∥b∥2 and E2[XY ] ≤ E[X 2]E[Y 2] to derive the bounds in
+23 and 24 respectively. By combining the inequalities 22 and 24 we find that for any i ∈ {1, . . . , n}
+it is true that
+
+(cid:113)
+
+ϵgen ≤
+
+ϵstab(A)E [∥∇f (A(S); zi)∥2
+
+2] +
+
+β
+2
+
+ϵstab(A).
+
+(25)
+
+To find an upper bound for the |ϵgen|, we also need an upper bound for negative of ϵgen, namely
+E[f (A(S); zi) − f (A(S(i)); zi)] = −ϵgen. Note that by the same argument
+
+(cid:113)
+
+−ϵgen ≤
+
+E (cid:2)∥A(S) − A(S(i))∥2
+
+2
+
+(cid:3) E (cid:2)∥∇f (A(S(i)); zi)]∥2
+
+E[∥A(S) − A(S(i))∥2
+
+2].
+
+(26)
+
+2
+
+(cid:3) +
+
+β
+2
+2] as follows
+
+Then we find an upper bound on E[∥∇f (A(S(i)); zi)]∥2
+
+(cid:104)
+
+E
+
+∥∇f (A(S(i)); zi)]∥2
+2
+
+(cid:105)
+
+16
+
+Published as a conference paper at ICLR 2023
+
+(cid:104)
+
+= E
+
+≤ 2E
+
+∥∇f (A(S(i)); zi) − ∇f (A(S); zi) + ∇f (A(S); zi)∥2
+2
+(cid:104)
+∥∇f (A(S(i)); zi) − ∇f (A(S); zi)]∥2
+
+2 + ∥∇f (A(S); zi)∥2
+2
+
+(cid:105)
+
+(cid:105)
+
+≤ 2β2E[∥A(S) − A(S(i))∥2
+
+2] + 2E[∥∇f (A(S); zi)]∥2
+2].
+
+The inequality 27 holds because of the β-smoothness of the loss. Additionally,
+
+(cid:113)
+
+2β2E2 (cid:2)∥A(S) − A(S(i))∥2
+(cid:113)
+
+2E (cid:2)∥A(S) − A(S(i))∥2
+
+2
+
+(cid:3) + 2E (cid:2)∥A(S) − A(S(i))∥2
+√
+
+(cid:3) E[∥∇f (A(S); zi)∥2
+
+2] +
+
+2
+
+2
+
+≤
+
+(cid:3) E[∥∇f (A(S); zi)∥2
+2]
+
+2βE[∥A(S) − A(S(i))∥2
+
+2].
+
+(27)
+
+(28)
+
+We combine the inequalities 26, 27 and 28 to find
+
+−ϵgen ≤
+
+(cid:113)
+
+2E (cid:2)∥A(S) − A(S(i))∥2
+
+(cid:3) E[∥∇f (A(S); zi)∥2
+
+2] + 2βE[∥A(S) − A(S(i))∥2
+2].
+
+(29)
+
+2
+
+Finally, through the inequalities 25 and 29 we find
+
+|ϵgen| ≤
+
+(cid:113)
+
+2ϵstab(A)E[∥∇f (A(S); zi)∥2
+
+2] + 2βϵstab(A)
+
+(30)
+
+We use the self-bounding property of the non-negative β-smooth loss function f (·; z) (Srebro et al.,
+2010, Lemma 3.1), to show
+
+The last display, Assumption 1 and equation 20 give
+
+∥∇f (A(S); zi)∥2
+
+2 ≤ 4βf (A(S); zi).
+
+E[∥∇f (A(S); zi)∥2
+
+2] ≤ 4βE[f (A(S); zi)] = 4β
+
+n
+(cid:88)
+
+E[f (A(S); zi)]
+
+1
+n
+
+i=1
+= 4βE[RS(A(S))]
+= 4β (E[RS(A(S))] − E[RS(W ∗
+= 4β (ϵopt + E[RS(W ∗
+
+S )]) .
+
+S )] + E[RS(W ∗
+
+S )])
+
+We combine the inequalities 30, 33 and the Definition 1 to find
+
+(cid:113)
+
+|ϵgen| ≤ 2
+
+2β (ϵopt + ϵc) ϵstab(A) + 2βϵstab(A).
+
+The last inequality gives the bound on the generalization error and completes the proof.
+
+B.2 SUM PRODUCT TERMS IN THE STABILITY BOUNDS
+
+Herein we show a lemma for the sum product terms associated with learning rate in Theorem 6 and
+Theorem 12. Then we will apply that lemma to derive the corresponding stability error bounds.
+
+Lemma 15 The following are true:
+
+• If ηt = C ≤ 2/(β + γ), then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγ) =
+
+1 − (1 − Cγ)T
+γ
+
+,
+
+(35)
+
+• If ηt = C/t ≤ 2/(β + γ), for some C ≥ 2/γ for t ≥ 1 + ⌈ β
+
+γ ⌉ and ηt = C ′/t ≤ 2/(β + γ) for
+
+some C ′ < 2/(γ + β) for t ≤ ⌈ β
+
+γ ⌉, then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+(cid:16)
+
+1 −
+
+t=1
+
+j=t+1
+
+(cid:17)
+
+ηjγ
+2
+
+≤ C log (cid:0)e2⌈β/γ⌉(cid:1) .
+
+(36)
+
+• If ηt ≤ C/t < 2/β, then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 ≤ Ce2CβT 2Cβ min
+
+(cid:26)
+
+1 +
+
+1
+2Cβ
+
+(cid:27)
+
+, log(eT )
+
+.
+
+(37)
+
+17
+
+(31)
+
+(32)
+
+(33)
+
+(34)
+
+□
+
+Published as a conference paper at ICLR 2023
+
+Proof.
+
+• If ηt = C ≤ 2/(β + γ) then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγ) = C
+
+T
+(cid:88)
+
+(1 − Cγ)T −t = C (1 − Cγ)T
+
+T
+(cid:88)
+
+t=1
+
+(1 − Cγ)−t
+
+t=1
+1 − (1 − Cγ)T
+Cγ
+
+= C
+
+=
+
+1 − (1 − Cγ)T
+γ
+
+,
+
+• If ηt = C/t ≤ 2/(β + γ), for some C ≥ 2/γ for t ≥ 1 + ⌈ β
+
+γ ⌉ and ηt = C ′/t ≤ 2/(β + γ) for
+
+some C ′ < 2/(γ + β) for t ≤ ⌈ β
+
+γ ⌉ then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+(cid:16)
+
+1 −
+
+t=1
+
+j=t+1
+
+(cid:17)
+
+ηjγ
+2
+
+≤
+
+=
+
+⌈ β
+γ ⌉
+(cid:88)
+
+t=1
+
+⌈ β
+γ ⌉
+(cid:88)
+
+t=1
+
+C ′
+t
+
+C ′
+t
+
+(cid:32)
+
+T
+(cid:89)
+
+(cid:18)
+
+1 −
+
+j=t+1
+
+(cid:19)
+
++
+
+C ′γ
+2j
+
+T
+(cid:89)
+
+(cid:18)
+
+1 −
+
+j=t+1
+
+(cid:19)
+
++
+
+C ′γ
+2j
+
+(cid:20)
+
+≤ C
+
+1 + log(⌈β/γ⌉) +
+
+1 − ⌈
+
+T
+(cid:88)
+
+t=1+⌈ β
+
+γ ⌉
+
+T
+(cid:88)
+
+t=1+⌈ β
+
+γ ⌉
+(cid:21)
+
++
+
+β
+T γ
+
+⌉
+
+C
+t
+
+T
+(cid:89)
+
+(cid:18)
+
+1 −
+
+j=t+1
+
+(cid:19)
+
+1
+j
+
+C
+t
+
+t
+T
+
+≤
+
+⌈ β
+γ ⌉
+(cid:88)
+
+t=1
+
+C ′
+t
+
+(cid:104)
+T − ⌈ β
+γ ⌉
+
+(cid:105)
+
++
+
+T
+
++ C
+
+(cid:33)
+
+≤ C log (cid:0)e2⌈β/γ⌉(cid:1) .
+
+• If ηt ≤ C/t ≤ 2/β, then
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 =
+
+≤
+
+=
+
+≤
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+C
+t
+
+C
+t
+
+C
+t
+
+C
+t
+
+T
+(cid:89)
+
+(cid:18)
+
+1 + β
+
+(cid:19)2
+
+C
+j
+
+j=t+1
+
+T
+(cid:89)
+
+j=t+1
+
+
+exp
+
+2β
+
+(cid:18)
+
+exp
+
+2β
+
+(cid:19)
+
+C
+j
+
+
+
+
+
+C
+j
+
+T
+(cid:88)
+
+j=t+1
+
+exp (2Cβ (log(T ) + 1 − log(t + 1)))
+
+= Ce2CβT 2Cβ
+
+≤ Ce2CβT 2Cβ
+
+≤ Ce2CβT 2Cβ
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+(cid:32)
+
+= Ce2CβT 2Cβ
+
+1 +
+
+(cid:32)
+
+≤ Ce2CβT 2Cβ
+
+1 +
+
+18
+
+1
+t
+
+1
+t
+
+1
+(t + 1)2Cβ
+
+1
+(t + 1)2Cβ
+
+1
+t1+2Cβ
+
+(38)
+
+T
+(cid:88)
+
+t=2
+(cid:90) T
+
+1
+
+(cid:33)
+
+1
+t1+2Cβ
+
+(cid:33)
+1
+x1+2Cβ dx
+
+Published as a conference paper at ICLR 2023
+
+= Ce2CβT 2Cβ
+
+= Ce2CβT 2Cβ
+
+≤ Ce2CβT 2Cβ
+
+(cid:18)
+
+1 +
+
+(cid:18)
+
+1 +
+
+(cid:18)
+
+1 +
+
+1
+2Cβ
+
+1
+2Cβ
+1
+2Cβ
+
+(cid:0)1 − T −2Cβ(cid:1)
+
+(cid:19)
+
+− C
+
+e2Cβ
+2β
+
+(cid:19)
+
+(cid:19)
+
+,
+
+(39)
+
+additionally (cid:80)T
+Ce2CβT 2Cβ log(eT ) for any T ∈ N, and we conclude that
+
+t=1 1/t ≤ log(eT ), thus the term in the inequality 38 may be upper bounded by
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 ≤ Ce2CβT 2Cβ min
+
+(cid:26)
+
+1 +
+
+1
+2Cβ
+
+(cid:27)
+
+, log(eT )
+
+.
+
+(40)
+
+The last inequality completes the proof.
+
+□
+
+In the next section we prove the stability and generalization error bounds for nonconvex losses.
+
+C NONCONVEX LOSS: PROOF OF THEOREM 6 & THEOREM 7
+
+Let z1, z2, . . . , zi, . . . , zn, z′
+S(i) ≜ (z1, z2, . . . , z′
+
+i be i.i.d. random variables, define S ≜ (z1, z2, . . . , zi, . . . , zn) and
+
+i, . . . , zn), W1 = W ′
+
+1. The updates for any t ≥ 1 are
+
+Wt+1 = Wt −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1
+
+∇f (Wt, zj),
+
+W (i)
+
+t+1 = W (i)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (W (i)
+
+t
+
+, zj) −
+
+ηt
+n
+
+∇f (W (i)
+
+t
+
+, z′
+
+i).
+
+Then for any t ≥ 1, we derive the stability recursion as
+
+∥Wt+1 − W (i)
+
+t+1∥2
+
+≤ ∥Wt − W (i)
+
+t ∥2 +
+
+ηt
+n
+
+(cid:13)
+(cid:13)
+(cid:13)
+(cid:13)
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+(cid:13)
+(cid:13)
+(cid:13)2
+
++
+
+ηt
+n
+
+∥∇f (Wt, zi) − ∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+≤ ∥Wt − W (i)
+
+t ∥2 +
+
+ηt
+n
+
+n
+(cid:88)
+
+∥∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)∥2
+
+j=1,j̸=i
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+(cid:17)
+
+, z′
+
+i)∥2
+
++
+
+(cid:16)
+
+ηt
+n
+
+≤ ∥Wt − W (i)
+
+(cid:18)
+
+=
+
+1 +
+
+t ∥2 +
+(cid:19)
+
+βηt
+
+n − 1
+n
+
+ηt(n − 1)
+n
+∥Wt − W (i)
+
+β∥Wt − W (i)
+
+t ∥2 +
+
+(cid:16)
+
+ηt
+n
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+t ∥2 +
+
+(cid:16)
+
+ηt
+n
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17)
+
+,
+
+inequality 43 comes from the smoothness of the loss. Then by solving the recursion we find
+
+(41)
+
+(42)
+
+(cid:17)
+
+(43)
+
+(44)
+
+∥WT +1 − W (i)
+T
+(cid:88)
+
+(cid:16)
+
+T +1∥2
+
+≤
+
+1
+n
+
+≤
+
+1
+n
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+j=t+1
+
+(cid:17) T
+(cid:89)
+
+j=t+1
+
+19
+
+(cid:17) T
+(cid:89)
+
+(cid:18)
+
+, z′
+
+i)∥2
+
+1 +
+
+(cid:19)
+
+n − 1
+n
+
+βηj
+
+(1 + βηj)
+
+Published as a conference paper at ICLR 2023
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+T
+(cid:88)
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17)2 T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2
+
+(cid:16)
+∥∇f (Wt, zi)∥2
+
+2 + ∥∇f (W (i)
+
+t
+
+(cid:17) T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+, z′
+
+i)∥2
+2
+
+t=1
+
+j=t+1
+
+(1 + βηj)2.
+
+≤
+
+1
+n
+
+√
+
+2
+n
+
+≤
+
+t=1
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+The last display gives
+
+∥WT +1 − W (i)
+
+T +1∥2
+
+2 ≤
+
+2
+n2
+
+T
+(cid:88)
+
+t=1
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2
+
+2 + ∥∇f (W (i)
+
+t
+
+(cid:17) T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+, z′
+
+i)∥2
+2
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 ,
+
+and by taking the expectation we find
+
+E[∥WT +1 − W (i)
+T
+(cid:88)
+
+(cid:16)
+
+T +1∥2
+2]
+
+≤
+
+2
+n2
+
+ηt
+
+E[∥∇f (Wt, zi)∥2
+
+2] + E[∥∇f (W (i)
+
+t
+
+(cid:17) T
+(cid:88)
+
+, z′
+
+i)∥2
+2]
+
+T
+(cid:89)
+
+ηt
+
+(1 + βηj)2
+
+t=1
+
+t=1
+
+j=t+1
+
+≤
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 .
+
+(45)
+
+We evaluate the summation of the products in the inequality 45. Lemma 15 under the choice of
+decreasing learning rate ηt ≤ C/t ≤ 2/β shows that
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 + βηj)2 ≤ Ce2CβT 2Cβ min
+
+(cid:26)
+
+1 +
+
+1
+2Cβ
+
+(cid:27)
+
+, log(eT )
+
+.
+
+(46)
+
+Through the inequalities 45, 46 and Theorem 3, we derive the bound on the generalization error as
+
+|ϵgen|
+
+(cid:113)
+
+≤ 2
+
+2β(ϵopt + ϵc)ϵstab(A) + 2βϵstab(A)
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)2β(ϵopt + ϵc)ϵpath
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+(1 + βηj)2 + 8β
+
+t=1
+
+j=t+1
+
+(cid:113)
+
+2Cβ(ϵopt + ϵc)ϵpatheCβT Cβ min
+
+(cid:26)
+
+1 +
+
+1
+2Cβ
+
+, log(eT )
+
+ϵpath
+n2
+
+T
+(cid:89)
+
+ηt
+
+j=t+1
+
+T
+(cid:88)
+
+t=1
+(cid:27) 1
+
+2
+
+(1 + βηj)2
+
+≤
+
+≤
+
+4
+n
+
+4
+n
+
++ 8Cβ
+
+ϵpath
+n2 e2CβT 2Cβ min
+
+(cid:26)
+
+1 +
+
+1
+2Cβ
+
+(cid:27)
+
+, log(eT )
+
+Under the choice ηt ≤ C/t < 1/β for all t, we choose C < 1/β, further we define ϵ ≜ βC < 1, and
+¯C(ϵ, T ) ≜ min {ϵ + 1/2, ϵ log(eT )} to get
+
+|ϵgen| ≤
+
+≤
+
+√
+
+n
+√
+
+2
+
+3
+
+4
+
+4
+
+n
+
+(cid:113)
+
+(ϵopt + ϵc)ϵpath(eT )ϵ ¯C
+
+1
+2 (ϵ, T ) + 8
+
+ϵpath
+n2 (eT )2ϵ ¯C(ϵ, T )
+
+(cid:113)
+
+(ϵopt + ϵc)ϵpath(eT )ϵ + 12
+
+ϵpath
+n2 (eT )2ϵ.
+
+The last inequality provide the generalization error bound and completes the proof.
+
+(47)
+
+□
+
+Next we derive upper bounds on expected path error ϵpath and optimization error ϵopt, to show an
+alternative expression of the generalization error inequality 47. We continue by proving the proof of
+Corollary 8.
+
+20
+
+Published as a conference paper at ICLR 2023
+
+C.1 PROOF OF COROLLARY 8.
+
+The self-bounding property of the non-negative β-smooth loss function f (·; z) (Srebro et al., 2010,
+Lemma 3.1) gives ∥∇f (Wt, zi)∥2
+2 ≤ 4βf (Wt, zi). By taking expectation, and through the Assump-
+tion 1 and the equation 20 we find
+
+E[∥∇f (Wt, zi)∥2
+
+2] ≤ 4βE[f (Wt, zi)] = 4βE[RS(Wt)].
+
+(48)
+
+The definition of ϵpath (Definition 5), and the decreasing learning rate (ηt = C/t < 1/βt) give
+
+ϵpath ≜
+
+T
+(cid:88)
+
+t=1
+
+ηtE[∥∇f (Wt, zi)∥2
+
+2] ≤ 4β
+
+T
+(cid:88)
+
+t=1
+
+ηtE[RS(Wt)]
+
+≤ 4βE[RS(W1)]
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+< 4E[RS(W1)]
+
+T
+(cid:88)
+
+t=1
+
+1
+t
+
+≤ 4E[RS(W1)] log(eT ),
+
+(49)
+
+(50)
+
+and the inequality 49 holds since the learning rate ηt < 2/β guarantees descent at each iteration.
+Similarly, ϵopt + ϵc ≤ E[RS(W1)]. The last inequality together with the inequalities 50 and 47 give
+
+|ϵgen| ≤
+
+≤
+
+√
+
+4
+
+3
+
+(cid:113)
+
+(cid:32)
+
+n
+√
+8
+
+3
+
+n
+
+(ϵopt + ϵc)ϵpath(eT )ϵ + 12
+
+ϵpath
+n2 (eT )2ϵ
+(cid:33)
+
+(cid:112)log(eT )(eT )ϵ +
+
+48
+n2 log(eT )(eT )2ϵ
+
+E[RS(W1)].
+
+The last inequality provides the bound of the corollary.
+
+D PL OBJECTIVE
+
+Herein we provide the proofs of the results associated with the PL condition on the objective. We
+start by proving an upper bound on the average output stability. Then by combining Lemma 16 and
+Theorem 3 we derive generalization error bounds for symmetric algorithms and smooth losses, as
+well as the generalization error bound of the full-batch GD under the PL condition. A similar proof
+technique of the next lemma also appears in prior work by Lei et al. (Lei & Ying, 2020a, Proof of
+Lemma B.2).
+
+Lemma 16 Let the loss function f (·; z) be non-negative, nonconvex and β-smooth for all z ∈ Z.
+S] for all w ∈ Rd. Then for
+Further, let the objective be µ-PL, E[∥∇RS(w)∥2
+any algorithm it is true that
+
+2] ≥ 2µE[RS(w) − R∗
+
+E[∥A(S(i)) − A(S)∥2
+
+2] ≤
+
+16
+µ
+
+ϵopt +
+
+8β
+n2µ2 (E [RS(πS)] + E[R(πS)]) .
+
+(51)
+
+Proof. Define the projection πS(i) ≜ π(A(S(i))) of the point A(S(i)) to the set of the minimizers
+of RS(i) (·), and the similarly the projection πS ≜ π(A(S)) of the point A(S) to the set of the
+minimizers of RS(·). Then
+
+E[∥A(S(i)) − A(S)∥2
+2]
+≤ 4E[∥A(S(i)) − πS(i)∥2
+
+E[RS(i) (A(S(i))) − R∗
+
+E[RS(A(S)) − R∗
+
+S] + 2E[∥πS(i) − πS∥2
+2]
+
+2] + 4E[∥A(S) − πS∥2
+8
+µ
+
+S(i)] +
+
+2] + 2E[∥πS(i) − πS∥2
+2]
+
+≤
+
+=
+
+≤
+
+8
+µ
+16
+µ
+16
+µ
+
+ϵopt + 2E[∥πS(i) − πS∥2
+2]
+
+ϵopt +
+
+4
+µ
+
+(E[RS(πS(i))] − E[RS(πS)]) ,
+
+21
+
+(52)
+
+(53)
+
+Published as a conference paper at ICLR 2023
+
+the inequalities 52 and 53 come from the quadratic growth (Karimi et al., 2016). Recall that, the PL
+condition on the objective gives
+
+1
+2µ
+
+E[∥∇RS(πS(i))∥2
+
+2] ≥ E[RS(πS(i)) − RS(πS)].
+
+We combine the inequalities 53 and 54 to find
+
+E[∥A(S(i)) − A(S)∥2
+
+2] ≤
+
+16
+µ
+
+ϵopt +
+
+2
+µ2
+
+E[∥∇RS(πS(i))∥2
+2].
+
+Also, it is true that
+
+∥∇RS(πS(i) )∥2
+
+2 = ∥∇RS(i)(πS(i) ) −
+
+=
+
+≤
+
+2
+n2 ∥∇f (πS(i) ; z′
+4β
+n2 f (πS(i) ; z′
+i) +
+
+i) +
+
+1
+n
+
+∇f (πS(i) ; zi)∥2
+2
+
+∇f (πS(i) ; z′
+
+1
+n
+i)∥2
+2 +
+4β
+n2 f (πS(i); zi),
+
+2
+n2 ∥∇f (πS(i) ; zi)∥2
+
+2
+
+(54)
+
+(55)
+
+(56)
+
+(57)
+
+equation 56 holds because ∇RS(i)(πS(i) ) = 0, the inequality 57 holds for nonnegative losses (Srebro
+et al., 2010, (Lemma 3.1). Through inequality57 we find,
+
+E[∥∇RS(πS(i) )∥2
+
+2] ≤
+
+=
+
+4β
+n2
+4β
+n2
+
+E[f (πS(i); z′
+
+E[f (πS; zi)] +
+
+E[f (πS(i) ; zi)]
+
+4β
+n2
+E[f (πS; z′
+
+i)],
+
+i)] +
+4β
+n2
+
+(58)
+
+(59)
+
+and the last equality holds because zi, z′
+find
+
+i are exchangeable. We combine the inequalities 55 and 59 to
+
+1
+n
+
+n
+(cid:88)
+
+i=1
+
+E[∥A(S(i)) − A(S)∥2
+
+2] ≤
+
+=
+
+ϵopt +
+
+8β
+n2µ2
+
+(cid:32)
+
+1
+n
+
+n
+(cid:88)
+
+i=1
+
+E[f (πS; zi)] +
+
+(cid:33)
+
+E[f (πS; z′
+i)
+
+(60)
+
+1
+n
+
+n
+(cid:88)
+
+i=1
+
+ϵopt +
+
+8β
+n2µ2 (E [RS(πS)] + E[R(πS)]) .
+
+(61)
+
+16
+µ
+
+16
+µ
+
+Since E[∥A(S(i)) − A(S)∥2
+for any i ∈ {1, . . . , n}
+
+2] = E[∥A(S(j)) − A(S)∥2
+
+2] for any i, j ∈ {1, . . . , n}, we conclude that
+
+E[∥A(S(i)) − A(S)∥2
+
+2] ≤
+
+16
+µ
+
+ϵopt +
+
+8β
+n2µ2 (E [RS(πS)] + E[R(πS)]) .
+
+The last inequality provides the bound on the expected stability and completes the proof.
+
+(62)
+
+□
+
+Corollary 17 Let πS ≜ π(A(S)) be the projection of the point A(S) to the set of the minimizers
+of RS(·). Further, define the constant ˜c ≜ E[RS(πS) + R(πS)]. For any symmetric algorithm,
+non-negative β-smooth loss function f (·; z) for all z ∈ Z, µ-PL objective and E[R∗
+S] = 0, it is true
+that
+
+|ϵgen| ≤
+
+√
+
+8β
+
+˜c
+
+√
+
+nµ
+
+ϵopt +
+
+16β2
+n2µ2 ˜c +
+
+44β
+µ
+
+ϵopt.
+
+(63)
+
+Further, define the constant c ≜ 44 max{E[RS(πS) + R(πS)], E[RS(W1) − R∗
+S]}. Then the gener-
+alization error of the full-batch GD with step-size choice ηt = 1/β and T total number of iterations
+is bounded as follows
+
+|ϵgen| ≤
+
+(cid:17)T /2
+
+(cid:16)
+
+1 − µ
+β
+n
+
+cβ
+µ
+
++
+
+cβ2
+n2µ2 +
+
+cβ
+µ
+
+(cid:18)
+
+1 −
+
+(cid:19)T
+
+.
+
+µ
+β
+
+(64)
+
+22
+
+Published as a conference paper at ICLR 2023
+
+Proof. We define the constant ˜c ≜ E[RS(πS) + R(πS)] apply Theorem 3 and Lemma 16 to find
+
+|ϵgen|
+
+(cid:113)
+
+≤ 2
+
+≤
+
+≤
+
+≤
+
+√
+
+(cid:18) 8
+√
+µ
+8(cid:112)2βϵopt
+√
+µ
+√
+
+8β
+
+˜c
+
+nµ
+
+2β(ϵopt + ϵc)ϵstab(A) + 2βϵstab(A)
+
+ϵopt +
+
+(cid:19) (cid:113)
+
+√
+
+4
+
+2β˜c
+nµ
+
+2β(ϵopt + ϵc) +
+√
+
+(cid:112)ϵopt + ϵc +
+
+8β
+
+˜c
+
+(cid:112)ϵopt + ϵc +
+
+32β
+µ
+
+ϵopt +
+
+32β
+µ
+
+ϵopt +
+
+16β2
+n2µ2 ˜c
+16β2
+n2µ2 ˜c
+
+(cid:112)ϵopt + ϵc +
+
+nµ
+8(cid:112)2βϵoptϵc
+√
+µ
+
++
+
+16β2
+n2µ2 ˜c +
+
+44β
+µ
+
+ϵopt.
+
+(65)
+
+□
+
+The last inequality completes the proof.
+
+E CONVEX LOSS: PROOF OF THEOREM 9 AND THEOREM 10.
+
+We start by proving the non-expansive property of the stability iterates for the case of β-smooth
+convex loss. Then we continue with the proof of the stability generalization error.
+
+Lemma 18 Let the gradient of the loss be β-Lipschitz for all z ∈ Z. If the loss function is convex
+and ηt < 2/β, then for any t ≤ T + 1 the updates Wt, W (i)
+
+satisfy the next inequality
+
+t
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+(cid:13)
+(cid:13)
+2
+
+≤ ∥Wt − W (i)
+
+t ∥2
+2.
+
+(66)
+
+Proof. By the definition of β-Lipschitz gradients and triangle inequality, it is true that
+
+∥∇f (Wt, zj) − ∇f (W (i)
+
+, zj)∥2 ≤ β∥Wt − W (i)
+
+t
+∇f (W (i)
+
+t
+
+, zj)∥2 ≤ β|J |∥Wt − W (i)
+
+t ∥2 =⇒
+t ∥2.
+
+(cid:88)
+
+∥
+
+j∈J
+
+∇f (Wt, zj) −
+
+(cid:88)
+
+j∈J
+
+(67)
+
+(68)
+
+Since the function h(W ) ≜ (cid:80)
+it follows that (co-coersivity of the gradient)
+
+j∈J ∇f (W, zj) is convex and the gradient of h(w) is β|J |-Lipschitz,
+
+⟨∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj), Wt − W (i)
+
+t
+
+⟩
+
+(cid:88)
+
+j∈J
+
+≥
+
+1
+β|J |
+
+∥
+
+(cid:88)
+
+j∈J
+
+∇f (Wt, zj) −
+
+∇f (W (i)
+
+t
+
+, zj)∥2
+2.
+
+(cid:88)
+
+j∈J
+
+(69)
+
+(70)
+
+Then prove the inequality 66 as follows
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+(cid:13)
+(cid:13)
+2
+
+= ∥Wt − W (i)
+
+t ∥2
+
+2 − 2
+
+ηt
+n
+
+n
+(cid:88)
+
+⟨∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj), Wt − W (i)
+
+t
+
+⟩
+
+(71)
+
+j=1,j̸=i
+
++
+
+η2
+t
+n2 ∥
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+(cid:16)
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+(cid:17)
+
+∥2
+2
+
+, zj)
+
+= ∥Wt − W (i)
+
+t ∥2
+
+2 − 2
+
+ηt
+n
+
+⟨
+
+n
+(cid:88)
+
+∇f (Wt, zj) −
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+j=1,j̸=i
+
+∇f (W (i)
+
+t
+
+, zj), Wt − W (i)
+
+t
+
+⟩
+
++
+
+η2
+t
+n2 ∥
+
+n
+(cid:88)
+
+∇f (Wt, zj) −
+
+n
+(cid:88)
+
+∇f (W (i)
+
+t
+
+, zj)∥2
+2
+
+j=1,j̸=i
+
+j=1,j̸=i
+
+23
+
+Published as a conference paper at ICLR 2023
+
+≤ ∥Wt − W (i)
+
+t ∥2
+
+2 − 2
+
+ηt
+β(n − 1)n
+
+∥
+
++
+
+η2
+t
+n2 ∥
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (Wt, zj) −
+
+n
+(cid:88)
+
+j=1,j̸=i
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (Wt, zj) −
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (W (i)
+
+t
+
+, zj)∥2
+2
+
+∇f (W (i)
+
+t
+
+, zj)∥2
+2
+
+(72)
+
+= ∥Wt − W (i)
+
+t ∥2
+
+2 +
+
+ηt
+n
+
+(cid:18) ηt
+n
+
+−
+
+2
+β(n − 1)
+
+(cid:19) (cid:13)
+(cid:13)
+(cid:13)
+(cid:13)
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+(cid:16)
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+(cid:13)
+(cid:13)
+2
+
+≤ ∥Wt − W (i)
+
+t ∥2
+2,
+
+(73)
+equation 71 holds from the expansion of the squared norm, 72 comes from the inequality 70. The
+□
+inequality 73 holds under the choice ηt < 2/β and completes the proof.
+
+Lemma 19 (Accumulated Path Error - Convex Loss) Let the loss function f (·; z) be convex and
+β-smooth and ηt ≤ 1/2β. Then the expected path-error of the full-batch GD after T iterations is
+bounded as
+
+ϵpath ≤ 4βE[∥W1 − W ∗
+
+S ∥2
+
+2] + 8βE[RS(W ∗
+
+S )]
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+(74)
+
+Proof. The self-bounding property of the non-negative β-smooth loss function f (·; z) (Srebro et al.,
+2010, Lemma 3.1) gives ∥∇f (Wt, zi)∥2
+2 ≤ 4βf (Wt, zi). By taking expectation, and through the
+equation 20 we find
+
+E[∥∇f (Wt, zi)∥2
+
+2] ≤ 4βE[f (Wt, zi)] = 4βE[RS(Wt)].
+
+(75)
+
+Similarly to the approach by Lei & Ying (2020b, Appendix A, Lemma 2), we use the convexity and
+the assumption ηt ≤ 1/2β to find
+
+∥Wt+1 − W ∗
+
+S ∥2
+
+S ∥2
+2
+
+2 = ∥Wt − ηt∇RS(Wt) − W ∗
+S ∥2
+S ∥2
+S ∥2
+S ∥2
+
+2 + η2
+2 + η2
+2 + 2βη2
+2 + 2ηtRS(W ∗
+
+= ∥Wt − W ∗
+≤ ∥Wt − W ∗
+≤ ∥Wt − W ∗
+≤ ∥Wt − W ∗
+
+t ∥∇RS(Wt)∥2
+t ∥∇RS(Wt)∥2
+
+2 + 2ηt⟨W ∗
+2 + 2ηt (RS(W ∗
+
+S − Wt, ∇RS(Wt)⟩
+S ) − RS(Wt))
+
+t RS(Wt) + 2ηt (RS(W ∗
+S ) − ηtRS(Wt).
+
+S ) − RS(Wt))
+
+The last gives
+
+T
+(cid:88)
+
+t=1
+
+ηtRS(Wt) ≤
+
+T
+(cid:88)
+
+t=1
+
+∥Wt − W ∗
+
+S ∥2
+
+2 −
+
+T
+(cid:88)
+
+t=1
+
+∥Wt+1 − W ∗
+
+S ∥2
+
+2 + 2
+
+T
+(cid:88)
+
+t=1
+
+ηtRS(W ∗
+S )
+
+≤ ∥W1 − W ∗
+
+S ∥2
+
+2 + 2
+
+T
+(cid:88)
+
+ηtRS(W ∗
+
+S ).
+
+(76)
+
+t=1
+The definition of ϵpath (Definition 5), the inequalities 75, 76 and the choice of the learning rate
+(ηt ≤ 1/2β) give
+
+ϵpath ≜
+
+T
+(cid:88)
+
+t=1
+
+ηtE[∥∇f (Wt, zi)∥2
+
+2] ≤ 4β
+
+T
+(cid:88)
+
+t=1
+
+ηtE[RS(Wt)]
+
+≤ 4βE[∥W1 − W ∗
+
+S ∥2
+
+2] + 8β
+
+T
+(cid:88)
+
+t=1
+
+ηtE[RS(W ∗
+
+S )].
+
+The last inequality provides the bound on the ϵpath.
+The standard choice of ηt ≤ 1/β gives the next known bound on the optimization error.
+
+(77)
+
+□
+
+Lemma 20 (Optimization Error - Convex Loss (Nesterov, 1998)) If f (·; z) is a convex and β-
+smooth function and ηt ≤ 1/β, then
+
+ϵopt = E[RS(A(S)) − RS(W ∗
+
+S )] ≤
+
+24
+
+E[∥W1 − W ∗
+(cid:16)
+(cid:80)T
+t=1 ηt
+
+S ∥2
+2]
+1 − βηt
+2
+
+(cid:17) .
+
+(78)
+
+Published as a conference paper at ICLR 2023
+
+E.1 PROOF OF THEOREM 9 AND THEOREM 10
+
+Let z1, z2, . . . , zi, . . . , zn, z′
+S(i) ≜ (z1, z2, . . . , z′
+
+i be i.i.d. random variables, define S ≜ (z1, z2, . . . , zi, . . . , zn) and
+
+i, . . . , zn), W1 = W ′
+
+1. The updates for any t ≥ 1 are
+
+Wt+1 = Wt −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1
+
+∇f (Wt, zj),
+
+W (i)
+
+t+1 = W (i)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (W (i)
+
+t
+
+, zj) −
+
+ηt
+n
+
+∇f (W (i)
+
+t
+
+, z′
+
+i).
+
+(79)
+
+(80)
+
+Then for any t ≥ 1
+
+∥Wt+1 − W (i)
+
+t+1∥2
+
+≤
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+(cid:13)
+(cid:13)
+(cid:13)2
+
++
+
+ηt
+n
+
+∥∇f (Wt, zi) − ∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+≤
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+(cid:13)
+(cid:13)
+2
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+(cid:17)
+
+, z′
+
+i)∥2
+
+(cid:16)
+
++
+
+ηt
+n
+≤ ∥Wt − W (i)
+
+t ∥2 +
+
+(cid:16)
+
+ηt
+n
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17)
+
+.
+
+(81)
+
+The inequality 81 comes from Lemma 18. Then by solving the recursion, we find
+
+∥WT +1 − W (i)
+
+T +1∥2 ≤
+
+1
+n
+
+T
+(cid:88)
+
+t=1
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17)
+
+thus
+
+∥WT +1 − W (i)
+
+T +1∥2
+
+2 ≤
+
+≤
+
+1
+n2
+
+2
+n2
+
+(cid:32) T
+
+(cid:88)
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:33)2
+
+(cid:17)
+
+t=1
+
+(cid:16)
+
+ηt
+
+T
+(cid:88)
+
+t=1
+
+∥∇f (Wt, zi)∥2
+
+2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+2
+
+(cid:17) T
+(cid:88)
+
+t=1
+
+ηt.
+
+(82)
+
+Inequality 82 gives that for any i ∈ {1, . . . , n}
+
+E[∥WT +1 − W (i)
+
+T +1∥2
+
+2] ≤
+
+=
+
+2
+n2
+
+4
+n2
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+(cid:16)
+
+ηt
+
+E[∥∇f (Wt, zi)∥2
+
+2] + E[∥∇f (W (i)
+
+t
+
+(cid:17) T
+(cid:88)
+
+, z′
+
+i)∥2
+2]
+
+ηtE[∥∇f (Wt, zi)∥2
+2]
+
+T
+(cid:88)
+
+t=1
+
+ηt =
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt.
+
+t=1
+
+ηt
+
+(83)
+
+Recall that WT +1 ≡ A(S) and W (i)
+
+T +1 ≡ A(S(i)). Theorem 3 and the inequality 83 give
+
+(cid:113)
+
+|ϵgen| ≤ 2
+
+2β (ϵopt + E[RS(W ∗
+
+S )]) ϵstab(A) + 2βϵstab(A)
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)2β (ϵopt + E[RS(W ∗
+
+S )])
+
+≤ 2
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt + 2β
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+4(cid:112)(ϵopt + E[RS(W ∗
+
+S )]) ϵpath
+
+n
+
+=
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)2β
+
+T
+(cid:88)
+
+t=1
+
+ηt + 8β
+
+ϵpath
+n2
+
+T
+(cid:88)
+
+t=1
+
+ηt.
+
+(84)
+
+25
+
+t=1
+
+(cid:19)
+
+T
+β
+
+Published as a conference paper at ICLR 2023
+
+Under the choice of constant learning rate ηt = 1/2β, Lemma 19 together with the inequality 83 give
+ϵpath ≤ 4βE[∥W1 − W ∗
+
+t=1 ηt, and ϵopt ≤ 3βE[∥W1 − W ∗
+
+2] + 8βE[RS(W ∗
+
+2]/T . Thus
+
+S )] (cid:80)T
+
+S ∥2
+
+S ∥2
+
+(cid:32)
+
+β
+2
+(cid:18) β
+2
+
+ϵstab(A) ≤
+
+=
+
+=
+
+32
+n2
+
+32
+n2
+8T
+n2
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + βE[RS(W ∗
+
+S )]
+
+(cid:33) T
+
+(cid:88)
+
+T
+(cid:88)
+
+ηt
+
+ηt
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] +
+
+1
+2
+
+E[RS(W ∗
+
+S )]T
+
+t=1
+(cid:19) T
+2β
+
+(cid:18)
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + E[RS(W ∗
+
+S )]
+
+(cid:19)
+
+.
+
+T
+β
+
+(85)
+
+(86)
+
+(87)
+
+The inequality 84 and Lemma 20 give
+
+(cid:113)
+
+|ϵgen| ≤ 2
+
+2β (ϵopt + E[RS(W ∗
+
+S )]) ϵstab(A) + 2βϵstab(A)
+
+(cid:115)
+
+≤ 2
+
+2β (ϵopt + E[RS(W ∗
+
+S )])
+
+(cid:18)
+
+8T
+n2
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + E[RS(W ∗
+
+S )]
+
+(cid:18)
+
+8T
+n2
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + E[RS(W ∗
+
+S )]
+
+(cid:19)
+
+T
+β
+
+(ϵopt + E[RS(W ∗
+
+S )]) (βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )])
+
++ 2β
+√
+8
+
+T
+
+(cid:113)
+
+n
+
+≤
+
+≤
+
+n
+
++
+
+(cid:113)
+
+=
+
+8
+n
+
++
+√
+8
+
+T
+
+16T
+(cid:0)βE[∥W1 − W ∗
+S ∥2
+n2
+(cid:115)(cid:18) 3βE[∥W1 − W ∗
+
+S ∥2
+2]
+
+2] + T E[RS(W ∗
+
+S )](cid:1)
+(cid:19)
+
+T
+
+(cid:0)βE[∥W1 − W ∗
+
+16T
+n2
+(3βE[∥W1 − W ∗
+
+S ∥2
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )](cid:1)
+
++
+
+16T
+n2
+
+(cid:0)βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )](cid:1)
+16T
+n2
+
++ E[RS(W ∗
+
+S )]
+
+(βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )])
+
+2] + T E[RS(W ∗
+
+S )]) (βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )])
+
+≤
+
+≤ 8
+
+8
+(cid:0)3βE[∥W1 − W ∗
+n
+(cid:18) 1
+(cid:19)
+n
+
+2T
+n2
+
++
+
+(cid:0)3βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )](cid:1) .
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )](cid:1) +
+
+(cid:0)βE[∥W1 − W ∗
+
+S ∥2
+
+2] + T E[RS(W ∗
+
+S )](cid:1)
+
+The last inequality completes the proof.
+
+□
+
+F STRONGLY-CONVEX OBJECTIVE: PROOF OF THEOREM 12 AND THEOREM
+
+13
+
+Similarly to the convex case, first we provide the contractive property of the stability recursion in the
+strongly convex loss case. Then we prove the stability and generalization error bounds.
+
+Lemma 21 Let the objective function be γ-strongly convex (γ > 0) and the leave-one-out objective
+function be γloo-strongly convex for some γloo ≥ 0. If the loss function is convex β-smooth for all
+z ∈ Z and ηt ≤ 2/(β + γ), then for any t ≤ T + 1 the updates Wt, W (i)
+
+satisfy the inequality
+
+t
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t − ηt
+
+(cid:16)
+
+∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+(cid:13)
+(cid:13)
+2
+
+≤ (1 − ηtγloo) ∥Wt − W (i)
+
+t ∥2
+2.
+
+Proof. The function RS−i(·) is also β-smooth for all z ∈ Z and the strong convexity gives
+
+⟨∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+), Wt − W (i)
+
+t
+
+⟩
+
+26
+
+Published as a conference paper at ICLR 2023
+
+≥
+
+βγloo
+β + γloo
+
+∥Wt − W (i)
+
+t ∥2
+
+2 +
+
+1
+(β + γloo)
+
+∥∇RS−i(Wt) − ∇RS−i (W (i)
+
+t
+
+)∥2
+2
+
+(88)
+
+We expand the squared norm as follows
+
+t − ηt
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+= ∥Wt − W (i)
++ η2
+≤ ∥Wt − W (i)
+
+t ∥2
+
+2 + η2
+
+t ∥2
+(cid:18) βγloo
+β + γloo
+βγloo
+β + γloo
+
+(cid:19)
+
+− 2ηt
+
+(cid:18)
+
+=
+
+1 − 2ηt
+
+(cid:16)
+
+∇RS−i(Wt) − ∇RS−i(W (i)
+
+(cid:17) (cid:13)
+2
+(cid:13)
+)
+(cid:13)
+(cid:13)
+2
+2 − 2ηt⟨∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+t
+
+), Wt − W (i)
+
+t
+
+⟩
+
+t ∥∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+)∥2
+2
+
+t ∥∇RS−i(Wt) − ∇RS−i(W (i)
+∥Wt − W (i)
+
+t ∥2
+
+1
+(β + γloo)
+
+2 +
+
+t
+
+)∥2
+2
+
+∥Wt − W (i)
+
+t ∥2
+2
+
+∥∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+(cid:18)
+
++ ηt
+
+ηt −
+
+(cid:19)
+
+∥∇RS−i(Wt) − ∇RS−i(W (i)
+
+t
+
+)∥2
+2
+
+2
+β + γloo
+(cid:19)
+
+(cid:18)
+
+≤
+
+1 − 2ηt
+
+βγloo
+β + γloo
+
+∥Wt − W (i)
+
+t ∥2
+2.
+
+(cid:19)
+
+)∥2
+2
+
+(89)
+
+(90)
+
+We apply the inequality 88 to derive 89. The inequality 90 holds since ηt ≤ 2/(β + γ) and
+β ≥ γ > γloo. Also
+
+2ηt
+
+βγloo
+β + γloo
+
+≥ 2ηt
+
+βγloo
+2β
+
+= ηtγloo.
+
+Through the inequalities 90 and 91 to derive the bound of the lemma.
+
+(91)
+
+□
+
+Lemma 22 (Accumulated Path Error - Strongly Convex Loss) Let the objective function RS(·)
+be γ-strongly convex and β-smooth. Define Γ(γ, T ) ≜ (1 − exp( −4T γ
+If
+ηt = 2/(β + γ), then the expected path-error of the full-batch GD after T iterations are bounded as
+
+β+γ )/(exp( −4γ
+
+β+γ ) − 1).
+
+ϵpath ≤
+
+4β2
+β + γ
+
+Γ(γ, T )E[∥W1 − W ∗
+
+S ∥2
+
+2] +
+
+8βT
+β + γ
+
+E[RS(W ∗
+
+S )],
+
+(92)
+
+Proof. The self-bounding property of the non-negative β-smooth loss function f (·; z) (Srebro et al.,
+2010, Lemma 3.1) gives ∥∇f (Wt, zi)∥2
+2 ≤ 4βf (Wt, zi). By taking expectation, and through the
+Assumption 1 and equation 20, we find
+E[∥∇f (Wt, zi)∥2
+
+2] ≤ 4βE[f (Wt, zi)] = 4βE[RS(Wt)] = 4βE[RS(Wt) − RS(W ∗
+
+S ) + RS(W ∗
+
+S )].
+(93)
+
+Further, Lemma 23 and the choice of constant learning rate η = 2/(β + γ) give
+
+E[RS(Wt) − RS(W ∗
+
+S )] ≤
+
+(cid:33)
+
+(cid:32)
+
+β
+2
+
+exp
+
+−4t
+β
+γ + 1
+
+E[∥W1 − W ∗
+
+S ∥2
+2].
+
+(94)
+
+The definition of ϵpath (Definition 5), the inequalities 93 and 94 and the constant learning rate
+(ηt = 2/(β + γ)) give
+
+ϵpath ≜
+
+T
+(cid:88)
+
+t=1
+
+ηtE[∥∇f (Wt, zi)∥2
+2]
+
+(95)
+
+≤ 4β
+
+≤ 4β
+
+T
+(cid:88)
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+ηtE[RS(Wt) − RS(W ∗
+
+S ) + RS(W ∗
+
+S )]
+
+2
+β + γ
+
+β
+2
+
+exp
+
+(cid:32)
+
+(cid:33)
+
+−4t
+β
+γ + 1
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] +
+
+8βT
+β + γ
+
+E[RS(W ∗
+
+S )]
+
+27
+
+Published as a conference paper at ICLR 2023
+
+≤
+
+4β2
+β + γ
+
+=
+
+4β2
+β + γ
+
+=
+
+4β2
+β + γ
+
+E[∥W1 − W ∗
+
+S ∥2
+2]
+
+(cid:32)
+
+exp
+
+T
+(cid:88)
+
+t=1
+
+−4t
+β
+γ + 1
+
+(cid:33)
+
++
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] exp
+
+(cid:32)
+
+−4
+β
+γ + 1
+
+(cid:33) 1 − exp
+
+1 − exp
+
+(cid:18)
+
+−4
+β
+γ +1
+
+(cid:124)
+
+(cid:123)(cid:122)
+Γ(γ,T )
+
+(cid:125)
+
+Γ(γ, T )E[∥W1 − W ∗
+
+S ∥2
+
+2] +
+
+8βT
+β + γ
+
+E[RS(W ∗
+
+S )].
+
+E[RS(W ∗
+
+S )]
+
+8βT
+β + γ
+(cid:18)
+
+−4T
+β
+γ +1
+
+(cid:19)
+
++
+
+(cid:19)
+
+8βT
+β + γ
+
+E[RS(W ∗
+
+S )]
+
+The last inequality provides the bound on the ϵpath. Further, we can show that
+
+Γ(γ, T ) ≤ min
+
+(cid:26)
+
+1
+
+4γ
+β+γ − 1
+
+e
+
+(cid:27)
+
+, T
+
+to simplify the expression in the inequality 96.
+
+(96)
+
+(97)
+
+□
+
+Lemma 23 ((Nesterov, 1998, Theorem 2.1.14)) If f (·; z) is a γ-strongly convex and β-smooth func-
+tion and ηt = 2/(β + γ), then
+
+ϵopt ≤
+
+(cid:33)
+
+(cid:32)
+
+β
+2
+
+exp
+
+−4T
+β
+γ + 1
+
+E[∥W1 − W ∗
+
+S ∥2
+2].
+
+Alternatively, if ηt = c/t, then
+
+ϵopt ≤
+
+β
+2
+
+T − 2cβγ
+
+β+γ E[∥W1 − W ∗
+
+S ∥2
+2].
+
+F.1 PROOF OF THEOREM 12 AND THEOREM 13
+
+(98)
+
+(99)
+
+Let z1, z2, . . . , zi, . . . , zn, z′
+S(i) ≜ (z1, z2, . . . , z′
+
+i be i.i.d. random variables, define S ≜ (z1, z2, . . . , zi, . . . , zn) and
+
+i, . . . , zn), W1 = W ′
+
+1. The updates for any t ≥ 1 are
+
+Wt+1 = Wt −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1
+
+∇f (Wt, zj),
+
+W (i)
+
+t+1 = W (i)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+j=1,j̸=i
+
+∇f (W (i)
+
+t
+
+, zj) −
+
+ηt
+n
+
+∇f (W (i)
+
+t
+
+, z′
+
+i).
+
+(100)
+
+(101)
+
+Then similarly to the inequality 81 we get
+
+∥Wt+1 − W (i)
+
+t+1∥2
+
+≤
+
+(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+t −
+
+ηt
+n
+
+n
+(cid:88)
+
+(cid:16)
+
+j=1,j̸=i
+
+∇f (Wt, zj) − ∇f (W (i)
+
+t
+
+, zj)
+
+(cid:17) (cid:13)
+(cid:13)
+(cid:13)
+(cid:13)2
+
+ηt
+n
+
++
+(cid:115)(cid:13)
+(cid:13)
+Wt − W (i)
+(cid:13)
+(cid:13)
+
+≤
+
+∥∇f (Wt, zi) − ∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+t − ηt
+
+(cid:16)
+
+RS−i(Wt) − RS−i(W (i)
+
+t
+
+(cid:17) (cid:13)
+2
+(cid:13)
+)
+(cid:13)
+(cid:13)
+2
+
++
+
+(cid:16)
+
+ηt
+n
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+(cid:17)
+
+, z′
+
+i)∥2
+
+t
+(cid:16)
+
+ηt
+n
+
+≤ (1 − ηtγloo)
+
+1
+
+2 ∥Wt − W (i)
+
+t ∥2 +
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+(cid:17)
+
+, z′
+
+i)∥2
+
+(102)
+
+and we apply Lemma 21 to derive the bound in 102. Then by solving the recursion we find
+
+∥WT +1 − W (i)
+
+T +1∥2
+
+28
+
+Published as a conference paper at ICLR 2023
+
+t=1
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+T
+(cid:88)
+
+t=1
+
+(cid:16)
+
+ηt
+
+≤
+
+≤
+
+≤
+
+1
+n
+
+1
+n
+
+1
+n
+
+T
+(cid:88)
+
+(cid:16)
+
+ηt
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17) T
+(cid:89)
+
+j=t+1
+
+(1 − ηjγloo)
+
+1
+2
+
+∥∇f (Wt, zi)∥2 + ∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+
+(cid:17)2 T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo)
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)2
+
+(cid:16)
+
+ηt
+
+T
+(cid:88)
+
+t=1
+
+∥∇f (Wt, zi)∥2
+
+2 + ∥∇f (W (i)
+
+t
+
+(cid:17) T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+, z′
+
+i)∥2
+2
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo).
+
+The last inequality provides the stability bound
+
+∥WT +1 − W (i)
+T
+(cid:88)
+
+T +1∥2
+(cid:16)
+
+2
+
+≤
+
+2
+n2
+
+t=1
+
+ηt
+
+∥∇f (Wt, zi)∥2
+
+2 + ∥∇f (W (i)
+
+t
+
+Inequality 103 gives that for any i ∈ {1, . . . , n}
+
+(cid:17) T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+, z′
+
+i)∥2
+2
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo) .
+
+(103)
+
+E[∥WT +1 − W (i)
+T
+(cid:88)
+
+(cid:16)
+
+T +1∥2
+2]
+
+≤
+
+2
+n2
+
+=
+
+4
+n2
+
+t=1
+
+T
+(cid:88)
+
+t=1
+
+ηt
+
+E[∥∇f (Wt, zi)∥2
+
+2] + E[∥∇f (W (i)
+
+t
+
+, z′
+
+i)∥2
+2]
+
+(cid:17) T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo)
+
+ηtE[∥∇f (Wt, zi)∥2
+2]
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo)
+
+=
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηjγloo) .
+
+(104)
+
+Recall that WT +1 ≡ A(S) and W (i)
+(cid:80)T
+
+(cid:81)T
+
+t=1 ηt
+
+j=t+1
+
+(cid:0)1 − ηtγ2
+(cid:113)
+
+T +1 ≡ A(S(i)). Due to space limitation, we define Ω(ηt, γloo) ≜
+
+loo/β(cid:1) Theorem 3 and the inequality 104 give
+
+|ϵgen| ≤ 2
+
+2β(ϵopt + E[RS(W ∗
+
+S )])ϵstab(A) + 2βϵstab(A)
+
+(105)
+
+(cid:114)
+
+≤ 2
+
+2β(ϵopt + E[RS(W ∗
+
+4(cid:112)(ϵopt + E[RS(W ∗
+
+=
+
+S )])
+
+S )])ϵpath
+
+4ϵpath
+n2 Ω(ηt, γloo) + 2β
+(cid:112)2βΩ(ηt, γloo) + 8β
+
+4ϵpath
+n2 Ω(ηt, γloo)
+ϵpath
+n2 Ω(ηt, γloo).
+β , the inequality 104, Lemmata 15 and 22 and give
+
+n
+β+γ < 2
+
+Under the choice of ηt = C = 2
+
+E[∥A(S) − A(S(i))∥2
+
+2] ≤
+
+4ϵpath
+n2
+
+T
+(cid:88)
+
+ηt
+
+T
+(cid:89)
+
+t=1
+
+j=t+1
+
+(1 − ηtγloo)
+
+=
+
+4ϵpath
+n2
+
+(cid:16)
+
+1 −
+
+1 − 2γloo
+β+γ
+
+(cid:17)T
+
+(cid:124)
+
+γloo
+(cid:123)(cid:122)
+Λ(γloo,T )
+
+(cid:125)
+
+4ϵpath
+n2 Λ(γloo, T ) ≤
+and the last inequality holds since Λ(γloo, T ) ≤ 1/γloo for any T and the monotonicity of Λ(γloo, T )
+gives Λ(γloo, T ) ≤ 2T /β for any pair γloo ≤ γ. Though the inequality 105, we find the generalization
+error bound
+
+4ϵpath
+n2 min
+
+2T
+β
+
+(106)
+
+≤
+
+,
+
+(cid:26) 1
+γloo
+
+(cid:27)
+
+|ϵgen| ≤
+
+4(cid:112)(ϵopt + E[RS(W ∗
+
+S )])ϵpath
+
+n
+
+(cid:112)2βΩ(ηt, γloo) + 8β
+
+ϵpath
+n2 Ω(ηt, γloo)
+
+29
+
+Published as a conference paper at ICLR 2023
+
+(cid:112)2βΛ(γloo, T ) + 8β
+
+ϵpath
+n2 Λ(γloo, T )
+
+(cid:33)
+
+E[∥W1 − W ∗
+
+S ∥2
+
+2] + E[RS(W ∗
+
+S )]
+
+Γ(γ, T )E[∥W1 − W ∗
+
+S ∥2
+
+2] +
+
+8βT
+β + γ
+
+E[RS(W ∗
+
+S )]
+
+(cid:19)
+(cid:112)2βΛ(γloo, T )
+
++ 8β
+
+4β2
+β+γ Γ(γ, T )E[∥W1 − W ∗
+S ∥2
+n2
+
+2] + 8βT
+β+γ
+
+E[RS(W ∗
+
+S )]
+
+Λ(γloo, T )
+
+(cid:19)
+
+max {βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+4(cid:112)(ϵopt + E[RS(W ∗
+
+S )])ϵpath
+
+n
+(cid:32)
+
+−4T
+β
+γ + 1
+
+(cid:33)
+
+≤
+
+≤
+
+4
+n
+
+×
+
+(cid:32)
+
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)
+
+exp
+
+β
+2
+(cid:115)(cid:18) 4β2
+β + γ
+
+(cid:115)(cid:18) 4β
+β + γ
+
+≤
+
+4
+n
+
+Γ(γ, T ) +
+
+8βT
+β + γ
+(cid:115)
+
+(cid:32)
+
+× (cid:112)2βΛ(γloo, T ) +
+
+4
+n
+β+γ Γ(γ, T )] + 8βT
+n2
+
++ 8
+
+β+γ
+
+4β
+
+(cid:115)(cid:18) 4β
+β + γ
+
+4
+n
+
+=
+
+Γ(γ, T ) +
+
+× (cid:112)2βΛ(γloo, T ) +
+
+(cid:32)
+
+(cid:19)
+
+8βT
+β + γ
+(cid:118)
+(cid:117)
+(cid:117)
+(cid:116)exp
+
+4
+n
+
++ 8
+
+4β
+
+β+γ Γ(γ, T ) + 8βT
+n2
+
+β+γ
+
+1
+2
+
+exp
+
+(cid:19) (cid:18) 4β
+β + γ
+
+(cid:18) −4T γ
+β + γ
+(cid:33)
+
+Γ(γ, T ) +
+
+(cid:19)
+(cid:112)2βΛ(γloo, T )
+
+8βT
+β + γ
+
+βΛ(γloo, T )
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+max {βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+(cid:33) (cid:18) 4β
+β + γ
+
+(cid:32)
+
+−4T
+β
+γ + 1
+(cid:33)
+
+Γ(γ, T ) +
+
+(cid:19)
+(cid:112)βΛ(γloo, T )
+
+8βT
+β + γ
+
+βΛ(γloo, T )
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}.
+
+(107)
+
+We proceed by applying the upper bounds of Γ(γ, T ), Λ(γloo, T ) as appear in the inequalities 97 and
+106 respectively and equation 107 gives
+
+|ϵgen|
+
+(cid:115)(cid:18) 4β
+β + γ
+
+4
+n
+
+≤
+
+(cid:26)
+
+min
+
+1
+
+4γ
+β+γ − 1
+
+e
+
+(cid:27)
+
+, T
+
++
+
+(cid:19)
+
+8βT
+β + γ
+
+(cid:115)
+
+max {βE[∥W1 − W ∗
+
+2], E[RS(W ∗
+
+S )]} 2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+(cid:32)
+
+4
+n
+
+exp
+
+(cid:18) −2T γ
+β + γ
+(cid:26)
+
+S ∥2
+(cid:19) (cid:115)(cid:18) 4β
+β + γ
+(cid:27)
+
+×
+
++
+
++ 8
+
+(cid:26)
+
+min
+
+1
+
+4γ
+β+γ − 1
+
+e
+
+(cid:27)
+
+, T
+
++
+
+(cid:19)
+
+8βT
+β + γ
+
+2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+4β
+β+γ min
+
+, T
+
++ 8βT
+β+γ
+
+e
+
+1
+4γ
+β+γ −1
+n2
+
+(cid:27) (cid:33)
+
+min
+
+(cid:26) β
+γloo
+
+, 2T
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+(cid:115)(cid:18) 4βT
+β + γ
+
+4
+n
+
+≤
+
+(cid:19)
+
++
+
+8βT
+β + γ
+
+max {βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]} 2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+(cid:32)
+
++
+
++ 8
+
+(cid:18) −2T γ
+β + γ
+
+exp
+
+4
+n
+β+γ + 8βT
+n2
+
+4βT
+
+β+γ
+
+(cid:19) (cid:115)(cid:18) 4βT
+β + γ
+
+(cid:19)
+
++
+
+8βT
+β + γ
+
+2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+(cid:27) (cid:33)
+
+min
+
+(cid:26) β
+γloo
+
+, 2T
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+30
+
+Published as a conference paper at ICLR 2023
+
+βT
+β + γ
+
+max {βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]} 2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+√
+8
+
+3
+
+(cid:115)
+
+=
+
++
+
+n
+
+(cid:32)
+
+√
+8
+
+3
+
+n
+
+(cid:19) (cid:115)
+
+exp
+
+(cid:18) −2T γ
+β + γ
+
+2 min
+
+(cid:26) β
+γloo
+
+(cid:27)
+
+, 2T
+
+βT
+β + γ
+(cid:27) (cid:33)
+
++ 96
+
+βT
+β+γ
+
+n2 min
+
+(cid:26) β
+γloo
+
+, 2T
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}.
+
+(108)
+
+To simplify the last display, we define the terms m(γloo, T ) ≜ βT min {β/γloo, 2T } /(β + γ) and
+S )](cid:9)
+M(W1) ≜ max (cid:8)βE[∥W1 − W ∗
+
+2], E[RS(W ∗
+
+S ∥2
+
+|ϵgen|
+8
+
+√
+
+6
+
+≤
+
+n
+(cid:32)
+
++
+
+√
+
+6
+
+8
+
+n
+
+=
+
+(cid:112)
+
+m(γloo, T )M (W1)
+
+√
+8
+
+6
+
+exp
+
+(cid:18) −2T γ
+β + γ
+(cid:32)
+
+n
+(cid:32)
+(cid:112)M (W1) +
+
+(cid:19)
+
+(cid:112)
+
+m(γloo, T ) +
+
+exp
+
+(cid:19)
+
+(cid:18) −2T γ
+β + γ
+
++
+
+n
+
+(cid:33)
+96
+n2 m(γloo, T )
+√
+4
+
+3
+
+(cid:112)
+
+M(W1)
+
+(cid:33)
+
+m(γloo, T )
+
+M(W1)
+
+m(γloo, T )
+
+(cid:33)
+
+(cid:112)
+
+Choose T = log(n)(β + γ)/2γ and define mn,γloo
+108 gives
+
+≜ β
+
+2γ min
+
+(cid:110) β
+γloo
+
+, β+γ
+γ
+
+log n
+
+(cid:111)
+
+, then the inequality
+
+6 log n
+n
+√
+6
+8
+n2
+
+(cid:115)
+
+(cid:32)
+
+48β
+γ
+
+log n
+n2 min
+(cid:32)
+
+(cid:113)
+
+6 log n
+n
+
+|ϵgen|
+
+√
+
+8
+
+≤
+
++
+
++
+
+√
+
+8
+
+√
+
+8
+
+=
+
+=
+
+(cid:115)
+
+β
+2γ
+
+max {βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]} min
+
+(cid:26) β
+γloo
+
+,
+
+β + γ
+γ
+
+(cid:27)
+
+log n
+
+β log n
+2γ
+
+min
+
+(cid:26) β
+γloo
+
+,
+
+β + γ
+γ
+
+(cid:27)
+
+log(n)
+
+(cid:26) β
+γloo
+
+,
+
+β + γ
+γ
+
+(cid:27) (cid:33)
+
+log(n)
+
+max{βE[∥W1 − W ∗
+
+S ∥2
+
+2], E[RS(W ∗
+
+S )]}
+
+mn,γloo M(W1) +
+
+mn,γloo +
+
+(cid:32)
+
+√
+
+1
+n
+1 + 4(cid:112)3mn,γloo
+n
+
+(cid:32)
+
+(cid:112)
+
+6 log n
+n
+
+M(W1) +
+
+(cid:33)
+
+(cid:33)
+
+mn,γloo
+
+M(W1)
+
+√
+
+3
+
+4
+
+n
+(cid:33)
+
+√
+
+M(W1)
+
+mn,γloo.
+
+(109)
+
+□
+
+The last inequality completes the proof.
+
+31
+
+
